@@ -12,7 +12,7 @@ class VpnGateService {
     ),
   );
 
-  // Vercel API URL - will be updated after deployment
+  // Vercel API URL - updated with actual deployment URL
   static const String _vercelApiUrl = 'https://vyntra-vpn.vercel.app/api/vpngate';
   
   // Cache keys
