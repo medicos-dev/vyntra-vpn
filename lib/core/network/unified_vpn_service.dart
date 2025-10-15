@@ -13,7 +13,7 @@ class UnifiedVpnService {
   );
   // Optional: set a Vercel Protection Bypass token here if your API is being challenged
   // Go to Vercel → Project Settings → Protection Bypass → create token and paste below
-  static const String _vercelBypassToken = '';
+  static const String _vercelBypassToken = 'thJgAkOY1niCHIBLu8BmWuqFD02VP0Bb';
 
   // Vercel API URLs
   static const String _unifiedApiUrl = 'https://vyntra-vpn.vercel.app/api/vpn-unified';
