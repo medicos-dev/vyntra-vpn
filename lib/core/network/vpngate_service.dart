@@ -15,6 +15,7 @@ class VpnGateService {
   // Vercel API URLs - updated with actual deployment URLs
   static const String _vercelApiUrl = 'https://vyntra-vpn.vercel.app/api/vpngate';
   static const String _unifiedApiUrl = 'https://vyntra-vpn.vercel.app/api/vpn-unified';
+  static const String _configApiUrl = 'https://vyntra-vpn.vercel.app/api/vpngate-config';
   // Vercel protection bypass token (automation secret)
   static const String _vercelBypassToken = 'thJgAkOY1niCHIBLu8BmWuqFD02VP0Bb';
   
@@ -410,6 +411,35 @@ class VpnGateService {
   Future<VpnGateServer?> getServerWithConfig(String id) async {
     try {
       final String needle = id.trim().toLowerCase();
+      // Try direct config API first (faster, avoids downloading entire CSV)
+      try {
+        final Response cfg = await _dio.get(
+          _configApiUrl,
+          queryParameters: { 'host': id },
+          options: Options(
+            responseType: ResponseType.json,
+            headers: {
+              'Accept': 'application/json',
+              'User-Agent': 'Vyntra-VPN-Android/1.0',
+              if (_vercelBypassToken.isNotEmpty) 'x-vercel-protection-bypass': _vercelBypassToken,
+            },
+            validateStatus: (s) => s! < 500,
+          ),
+        );
+        if (cfg.statusCode == 200 && cfg.data is Map && (cfg.data['ovpnBase64'] ?? '').toString().isNotEmpty) {
+          return VpnGateServer(
+            hostName: id,
+            ip: id,
+            country: '',
+            score: 0,
+            pingMs: 0,
+            speedBps: 0,
+            ovpnBase64: (cfg.data['ovpnBase64'] as String),
+          );
+        }
+      } catch (_) {
+        // fall through to CSV parsing
+      }
       // Prefer direct CSV lookup since it contains Base64
       final csvServers = await _fetchFromVercel();
       // Exact hostname match

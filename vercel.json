@@ -5,6 +5,9 @@
     "api/vpngate.js": {
       "maxDuration": 10
     },
+    "api/vpngate-config.js": {
+      "maxDuration": 10
+    },
     "api/cloudflare-warp.js": {
       "maxDuration": 10
     },
