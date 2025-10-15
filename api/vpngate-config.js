@@ -48,22 +48,40 @@ export default async function handler(req, res) {
       }
       csv = text;
     }
-    const lines = csv.split(/\r?\n/).filter(l => l && !l.startsWith('#') && !l.startsWith('*'));
-    const header = lines.find(l => /HostName,/i.test(l));
+    const lines = csv.split(/\r?\n/).filter(l => (l || '').trim() && !l.startsWith('#') && !l.startsWith('*'));
+    // Find header: prefer the first line containing HostName (case-insensitive); fallback to the first non-comment line
+    let header = lines.find(l => /hostname/i.test(l)) || lines[0];
     if (!header) return res.status(502).json({ error: 'Invalid CSV' });
-    const cols = header.split(',');
-    const idx = Object.fromEntries(cols.map((c, i) => [c.trim(), i]));
-    const needle = hostOrIp.toLowerCase();
-    let want = null;
-    for (let i = 1; i < lines.length; i++) {
-      const parts = lines[i].split(',');
-      if (parts.length < cols.length) continue;
-      const hn = (parts[idx['HostName']] || '').trim().toLowerCase();
-      const ip = (parts[idx['IP']] || '').trim();
-      if (hn === needle || ip === hostOrIp.trim()) { want = parts; break; }
+
+    const cols = header.split(',').map(s => s.trim());
+    const lower = cols.map(c => c.toLowerCase());
+    const findCol = (preds) => preds.map(p => lower.indexOf(p)).find(ix => ix >= 0);
+
+    const hostIdx = findCol(['hostname']);
+    const ipIdx = findCol(['ip']);
+    const b64Idx = findCol([
+      'openvpn_configdata_base64',
+      'openvpn_config_data_base64',
+      'openvpn config data base64',
+    ]);
+    if (hostIdx == null || ipIdx == null || b64Idx == null) {
+      return res.status(502).json({ error: 'Invalid CSV columns' });
     }
-    if (!want) return res.status(404).json({ error: 'Not found' });
-    const b64 = (want[idx['OpenVPN_ConfigData_Base64']] || '').trim();
+
+    const needle = hostOrIp.toLowerCase();
+    let b64 = '';
+    for (let i = 1; i < lines.length; i++) {
+      const row = lines[i];
+      const parts = row.split(',');
+      if (parts.length < Math.max(hostIdx, ipIdx, b64Idx) + 1) continue;
+      const hn = (parts[hostIdx] || '').trim().toLowerCase();
+      const ip = (parts[ipIdx] || '').trim();
+      if (hn === needle || ip === hostOrIp.trim()) {
+        b64 = (parts[b64Idx] || '').trim();
+        if (b64) break;
+      }
+    }
+    if (!b64) return res.status(404).json({ error: 'Config missing' });
     if (!b64) return res.status(404).json({ error: 'Config missing' });
     return res.status(200).json({ host: hostOrIp, ovpnBase64: b64 });
   } catch (e) {
