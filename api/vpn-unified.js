@@ -33,27 +33,40 @@ export default function handler(req, res) {
     const lines = csvData.split('\n').filter(line => line.trim() && !line.startsWith('#'));
     const serverCount = Math.max(0, lines.length - 1); // Subtract header
     
-    // Parse first 5 servers for preview
-    const sampleServers = [];
+    // Parse all servers for VPNGate
+    const vpngateServers = [];
     if (lines.length > 1) {
       const header = lines[0].split(',');
       const hostNameIdx = header.findIndex(h => h.toLowerCase().includes('hostname'));
       const ipIdx = header.findIndex(h => h.toLowerCase() === 'ip');
       const countryIdx = header.findIndex(h => h.toLowerCase().includes('countrylong'));
       const scoreIdx = header.findIndex(h => h.toLowerCase() === 'score');
+      const pingIdx = header.findIndex(h => h.toLowerCase() === 'ping');
+      const speedIdx = header.findIndex(h => h.toLowerCase() === 'speed');
+      const base64Idx = header.findIndex(h => h.toLowerCase().includes('openvpn_configdata_base64'));
       
-      for (let i = 1; i <= Math.min(5, lines.length - 1); i++) {
+      for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(',');
-        if (cols.length > Math.max(hostNameIdx, ipIdx, countryIdx, scoreIdx)) {
-          sampleServers.push({
-            hostName: cols[hostNameIdx] || 'Unknown',
-            ip: cols[ipIdx] || '0.0.0.0',
-            country: cols[countryIdx] || 'Unknown',
-            score: parseInt(cols[scoreIdx]) || 0
-          });
+        if (cols.length > Math.max(hostNameIdx, ipIdx, countryIdx, scoreIdx, base64Idx)) {
+          const base64 = cols[base64Idx] || '';
+          // Only include servers with valid Base64 config
+          if (base64.length > 10) {
+            vpngateServers.push({
+              hostName: cols[hostNameIdx] || 'Unknown',
+              ip: cols[ipIdx] || '0.0.0.0',
+              country: cols[countryIdx] || 'Unknown',
+              score: parseInt(cols[scoreIdx]) || 0,
+              ping: parseInt(cols[pingIdx]) || 9999,
+              speed: parseInt(cols[speedIdx]) || 0,
+              hasConfig: true
+            });
+          }
         }
       }
     }
+    
+    // Get sample servers (first 5) for preview
+    const sampleServers = vpngateServers.slice(0, 5);
     
     // Unified VPN response
     const unifiedResponse = {
@@ -63,11 +76,12 @@ export default function handler(req, res) {
         vpngate: {
           name: "VPNGate",
           type: "openvpn",
-          servers: serverCount,
+          servers: vpngateServers.length,
           description: "Free OpenVPN servers provided by VPNGate community",
           endpoint: "/api/vpngate",
           features: ["Free", "OpenVPN", "Community-driven", "No registration"],
-          sampleServers: sampleServers
+          sampleServers: sampleServers,
+          allServers: vpngateServers
         },
         cloudflareWarp: {
           name: "Cloudflare WARP",

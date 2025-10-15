@@ -12,8 +12,9 @@ class VpnGateService {
     ),
   );
 
-  // Vercel API URL - updated with actual deployment URL
+  // Vercel API URLs - updated with actual deployment URLs
   static const String _vercelApiUrl = 'https://vyntra-vpn.vercel.app/api/vpngate';
+  static const String _unifiedApiUrl = 'https://vyntra-vpn.vercel.app/api/vpn-unified';
   
   // Cache keys
   static const String _cacheKey = 'vpngate_csv_cache';
@@ -42,7 +43,15 @@ class VpnGateService {
         return cachedData;
       }
 
-      // Fetch fresh data from Vercel
+      // Try unified API first (faster and more reliable)
+      final unifiedData = await _fetchFromUnifiedApi();
+      if (unifiedData.isNotEmpty) {
+        // Cache the fresh data
+        await _cacheData(unifiedData);
+        return unifiedData;
+      }
+
+      // Fallback to direct CSV API
       final freshData = await _fetchFromVercel();
       if (freshData.isNotEmpty) {
         // Cache the fresh data
@@ -96,6 +105,61 @@ class VpnGateService {
       await prefs.setInt(_cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
     } catch (e) {
       // Ignore cache errors
+    }
+  }
+
+  Future<List<VpnGateServer>> _fetchFromUnifiedApi() async {
+    try {
+      final Response response = await _dio.get(
+        _unifiedApiUrl,
+        options: Options(
+          responseType: ResponseType.json,
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache',
+            'User-Agent': 'Vyntra-VPN-Android/1.0',
+          },
+          validateStatus: (status) => status! < 500,
+        ),
+      );
+
+      if (response.statusCode != 200) {
+        return <VpnGateServer>[];
+      }
+
+      final Map<String, dynamic> data = response.data;
+      final Map<String, dynamic>? vpngateService = data['services']?['vpngate'];
+      
+      if (vpngateService == null) {
+        return <VpnGateServer>[];
+      }
+
+      // Parse servers from unified API response
+      final List<dynamic>? allServers = vpngateService['allServers'];
+      if (allServers == null || allServers.isEmpty) {
+        return <VpnGateServer>[];
+      }
+
+      final List<VpnGateServer> servers = [];
+      for (final serverData in allServers) {
+        try {
+          servers.add(VpnGateServer(
+            hostName: serverData['hostName'] ?? 'Unknown',
+            ip: serverData['ip'] ?? '0.0.0.0',
+            country: serverData['country'] ?? 'Unknown',
+            score: serverData['score'] ?? 0,
+            pingMs: serverData['ping'] ?? 9999,
+            speedBps: serverData['speed'] ?? 0,
+            ovpnBase64: '', // We'll fetch this from CSV if needed
+          ));
+        } catch (e) {
+          continue;
+        }
+      }
+
+      return servers;
+    } catch (e) {
+      return <VpnGateServer>[];
     }
   }
 
@@ -336,5 +400,56 @@ class VpnGateService {
   Future<List<VpnGateServer>> forceRefresh() async {
     await clearCache();
     return await fetchServersFromVercel();
+  }
+
+  // Method to get server with full Base64 config
+  Future<VpnGateServer?> getServerWithConfig(String hostName) async {
+    try {
+      // First try to get from unified API
+      final servers = await fetchServersFromVercel();
+      final server = servers.firstWhere(
+        (s) => s.hostName == hostName,
+        orElse: () => throw Exception('Server not found'),
+      );
+
+      // If server doesn't have config, fetch from CSV
+      if (server.ovpnBase64.isEmpty) {
+        final csvServers = await _fetchFromVercel();
+        final csvServer = csvServers.firstWhere(
+          (s) => s.hostName == hostName,
+          orElse: () => throw Exception('Server not found in CSV'),
+        );
+        return csvServer;
+      }
+
+      return server;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Method to get all available VPN services info
+  Future<Map<String, dynamic>?> getVpnServicesInfo() async {
+    try {
+      final Response response = await _dio.get(
+        _unifiedApiUrl,
+        options: Options(
+          responseType: ResponseType.json,
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache',
+            'User-Agent': 'Vyntra-VPN-Android/1.0',
+          },
+          validateStatus: (status) => status! < 500,
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        return response.data;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
   }
 }
