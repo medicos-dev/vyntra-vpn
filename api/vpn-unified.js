@@ -29,9 +29,31 @@ export default function handler(req, res) {
     const csvPath = path.join(__dirname, '..', 'vpngate.csv');
     const csvData = fs.readFileSync(csvPath, 'utf8');
     
-    // Parse CSV to get server count
+    // Parse CSV to get server count and sample servers
     const lines = csvData.split('\n').filter(line => line.trim() && !line.startsWith('#'));
     const serverCount = Math.max(0, lines.length - 1); // Subtract header
+    
+    // Parse first 5 servers for preview
+    const sampleServers = [];
+    if (lines.length > 1) {
+      const header = lines[0].split(',');
+      const hostNameIdx = header.findIndex(h => h.toLowerCase().includes('hostname'));
+      const ipIdx = header.findIndex(h => h.toLowerCase() === 'ip');
+      const countryIdx = header.findIndex(h => h.toLowerCase().includes('countrylong'));
+      const scoreIdx = header.findIndex(h => h.toLowerCase() === 'score');
+      
+      for (let i = 1; i <= Math.min(5, lines.length - 1); i++) {
+        const cols = lines[i].split(',');
+        if (cols.length > Math.max(hostNameIdx, ipIdx, countryIdx, scoreIdx)) {
+          sampleServers.push({
+            hostName: cols[hostNameIdx] || 'Unknown',
+            ip: cols[ipIdx] || '0.0.0.0',
+            country: cols[countryIdx] || 'Unknown',
+            score: parseInt(cols[scoreIdx]) || 0
+          });
+        }
+      }
+    }
     
     // Unified VPN response
     const unifiedResponse = {
@@ -44,7 +66,8 @@ export default function handler(req, res) {
           servers: serverCount,
           description: "Free OpenVPN servers provided by VPNGate community",
           endpoint: "/api/vpngate",
-          features: ["Free", "OpenVPN", "Community-driven", "No registration"]
+          features: ["Free", "OpenVPN", "Community-driven", "No registration"],
+          sampleServers: sampleServers
         },
         cloudflareWarp: {
           name: "Cloudflare WARP",
@@ -57,10 +80,10 @@ export default function handler(req, res) {
         outlineVpn: {
           name: "Outline VPN",
           type: "shadowsocks",
-          servers: 2,
+          servers: 3,
           description: "Secure and fast VPN powered by Shadowsocks protocol",
           endpoint: "/api/outline-vpn", 
-          features: ["Shadowsocks", "High performance", "Easy setup", "Open source"]
+          features: ["Shadowsocks", "High performance", "Easy setup", "Open source", "Multi-region servers"]
         }
       },
       recommendations: {
