@@ -49,21 +49,35 @@ export default async function handler(req, res) {
       }
       csv = text;
     }
-    const lines = csv.split(/\r?\n/).filter(l => (l || '').trim() && !l.startsWith('#') && !l.startsWith('*'));
+    // Normalize content (strip BOM if present)
+    const normalized = csv.replace(/^\uFEFF/, '');
+    const lines = normalized
+      .split(/\r?\n/)
+      .filter(l => (l || '').trim() && !l.startsWith('#') && !l.startsWith('*'));
     // Find header: prefer the first line containing HostName (case-insensitive); fallback to the first non-comment line
     let header = lines.find(l => /hostname/i.test(l)) || lines[0];
     if (!header) return res.status(502).json({ error: 'Invalid CSV' });
 
     const cols = header.split(',').map(s => s.trim());
     const lower = cols.map(c => c.toLowerCase());
-    const findCol = (preds) => preds.map(p => lower.indexOf(p)).find(ix => ix >= 0);
+    const findColIncludes = (needles) => {
+      for (let i = 0; i < lower.length; i++) {
+        const cell = lower[i];
+        for (const n of needles) {
+          if (cell.includes(n)) return i;
+        }
+      }
+      return -1;
+    };
 
-    const hostIdx = findCol(['hostname']);
-    const ipIdx = findCol(['ip']);
-    const b64Idx = findCol([
+    const hostIdx = findColIncludes(['hostname', 'host name']);
+    const ipIdx = findColIncludes(['ip']);
+    const b64Idx = findColIncludes([
       'openvpn_configdata_base64',
       'openvpn_config_data_base64',
       'openvpn config data base64',
+      'configdata_base64',
+      'config_data_base64',
     ]);
     if (hostIdx == null || ipIdx == null || b64Idx == null) {
       return res.status(502).json({ error: 'Invalid CSV columns' });
