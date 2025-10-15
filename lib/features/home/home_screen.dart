@@ -76,22 +76,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     
     try {
       final unifiedService = ref.read(unifiedVpnProvider);
-      
-      // Fetch all servers from unified service
+      // Fetch all servers from unified service (cached)
       final allServers = await unifiedService.fetchAllServers();
-      
-      if (mounted && allServers.isNotEmpty) {
+
+      if (mounted) {
         setState(() {
-          // Sort by ping and take top 20
-          servers = allServers
-            .where((s) => s.pingMs != null)
-            .toList()
-            ..sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
-          servers = servers.take(20).toList();
-          _loadingServers = false;
-        });
-      } else if (mounted) {
-        setState(() {
+          // Prefer lower ping first when available, but keep all protocols
+          final list = List<VpnServer>.from(allServers);
+          list.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
+          servers = list; // Do not truncate so counts are accurate
           _loadingServers = false;
         });
       }
@@ -112,22 +105,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     
     try {
       final unifiedService = ref.read(unifiedVpnProvider);
-      
       // Force refresh (bypass cache)
       final allServers = await unifiedService.forceRefresh();
-      
-      if (mounted && allServers.isNotEmpty) {
+
+      if (mounted) {
         setState(() {
-          // Sort by ping and take top 20
-          servers = allServers
-            .where((s) => s.pingMs != null)
-            .toList()
-            ..sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
-          servers = servers.take(20).toList();
-          _loadingServers = false;
-        });
-      } else if (mounted) {
-        setState(() {
+          final list = List<VpnServer>.from(allServers);
+          list.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
+          servers = list;
           _loadingServers = false;
         });
       }
@@ -147,19 +132,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     }
     
     final ctrl = ref.read(vpnControllerProvider);
-    final best = servers.first;
-    
-    // Handle different VPN protocols
-    String profile;
-    if (best.protocol == VpnProtocol.openvpn && best.ovpnBase64 != null && best.ovpnBase64!.isNotEmpty) {
-      final service = ref.read(vpngateProvider);
-      profile = service.buildHardenedOvpn(best.ovpnBase64!);
-    } else {
-      // For now, only support OpenVPN connections
-      // TODO: Add WireGuard and Shadowsocks support
-      return;
+    // Prefer the fastest OpenVPN server we can actually connect to
+    final List<VpnServer> openvpnServers = servers
+        .where((s) => s.protocol == VpnProtocol.openvpn)
+        .toList();
+    openvpnServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
+    if (openvpnServers.isEmpty) return;
+    final VpnServer target = openvpnServers.first;
+
+    final vpngate = ref.read(vpngateProvider);
+    String? ovpn = target.ovpnBase64;
+    if (ovpn == null || ovpn.isEmpty) {
+      // Fetch full config on-demand using hostname
+      final withConfig = await vpngate.getServerWithConfig(target.hostname);
+      if (withConfig != null && withConfig.ovpnBase64.isNotEmpty) {
+        ovpn = withConfig.ovpnBase64;
+      }
     }
-    
+    if (ovpn == null || ovpn.isEmpty) return;
+
+    final profile = vpngate.buildHardenedOvpn(ovpn);
     _currentProfile = profile;
     await ctrl.connect(profile);
   }
