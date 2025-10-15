@@ -14,27 +14,9 @@ export default async function handler(req, res) {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
 
-    // Try multiple candidate locations for vpngate.csv in the Vercel bundle
-    const candidates = [
-      path.join(__dirname, 'vpngate.csv'),
-      path.join(__dirname, '..', 'vpngate.csv'),
-      path.join(__dirname, '..', 'data', 'vpngate.csv'),
-      path.join(process.cwd(), 'vpngate.csv'),
-      path.join(process.cwd(), 'vyntra_app_aiks', 'vpngate.csv'),
-    ];
-
+    // Prefer live CSV (VPNGate iPhone API). Fallback to bundled CSV only if live fails
     let csv = null;
-    for (const p of candidates) {
-      try {
-        if (fs.existsSync(p)) {
-          csv = fs.readFileSync(p, 'utf8');
-          break;
-        }
-      } catch (_) { /* ignore */ }
-    }
-
-    // Fallback: fetch live CSV if local file not found
-    if (!csv) {
+    try {
       const bypassHeader = req.headers['x-vercel-protection-bypass'];
       const headers = {
         'User-Agent': 'Vyntra-VPN-Android/1.0',
@@ -44,10 +26,28 @@ export default async function handler(req, res) {
       if (bypassHeader) headers['X-Vercel-Protection-Bypass'] = bypassHeader;
       const resp = await fetch('https://www.vpngate.net/api/iphone/', { headers, cache: 'no-store' });
       const text = await resp.text();
-      if (!resp.ok || !text || !text.includes('HostName')) {
-        return res.status(502).json({ error: 'Unable to load VPNGate CSV (local and remote failed)' });
+      if (resp.ok && text && /hostname/i.test(text)) {
+        csv = text;
       }
-      csv = text;
+    } catch (_) { /* ignore and fallback */ }
+
+    if (!csv) {
+      const candidates = [
+        path.join(__dirname, 'vpngate.csv'),
+        path.join(__dirname, '..', 'vpngate.csv'),
+        path.join(__dirname, '..', 'data', 'vpngate.csv'),
+        path.join(process.cwd(), 'data', 'vpngate.csv'),
+        path.join(process.cwd(), 'vyntra_app_aiks', 'data', 'vpngate.csv'),
+      ];
+      for (const p of candidates) {
+        try {
+          if (fs.existsSync(p)) {
+            csv = fs.readFileSync(p, 'utf8');
+            break;
+          }
+        } catch (_) { /* ignore */ }
+      }
+      if (!csv) return res.status(502).json({ error: 'Unable to load VPNGate CSV (no live and no local)' });
     }
     // Normalize content (strip BOM if present)
     const normalized = csv.replace(/^\uFEFF/, '');
@@ -83,11 +83,32 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: 'Invalid CSV columns' });
     }
 
+    // CSV row splitter supporting quoted fields with commas
+    const splitCsvRow = (row) => {
+      const out = [];
+      let cur = '';
+      let inQ = false;
+      for (let i = 0; i < row.length; i++) {
+        const ch = row[i];
+        if (ch === '"') {
+          // toggle quote or escape double quote
+          if (inQ && row[i + 1] === '"') { cur += '"'; i++; }
+          else inQ = !inQ;
+        } else if (ch === ',' && !inQ) {
+          out.push(cur); cur = '';
+        } else {
+          cur += ch;
+        }
+      }
+      out.push(cur);
+      return out;
+    };
+
     const needle = hostOrIp.toLowerCase();
     let b64 = '';
     for (let i = 1; i < lines.length; i++) {
       const row = lines[i];
-      const parts = row.split(',');
+      const parts = splitCsvRow(row);
       if (parts.length < Math.max(hostIdx, ipIdx, b64Idx) + 1) continue;
       const hn = (parts[hostIdx] || '').trim().toLowerCase();
       const ip = (parts[ipIdx] || '').trim();
