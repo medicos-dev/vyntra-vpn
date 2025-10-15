@@ -615,17 +615,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                       onSelect: (s) async {
                         final ctrl = ref.read(vpnControllerProvider);
                         
-                        // Handle different VPN protocols
-                        String profile;
-                        if (s.protocol == VpnProtocol.openvpn && s.ovpnBase64 != null && s.ovpnBase64!.isNotEmpty) {
-                          final service = ref.read(vpngateProvider);
-                          profile = service.buildHardenedOvpn(s.ovpnBase64!);
-                        } else {
-                          // For now, only support OpenVPN connections
-                          // TODO: Add WireGuard and Shadowsocks support
-                          return;
+                        // Only OpenVPN is handled for now; fetch config on-demand if missing
+                        if (s.protocol != VpnProtocol.openvpn) {
+                          return; // TODO: Add WireGuard and Shadowsocks support
                         }
-                        
+
+                        final service = ref.read(vpngateProvider);
+                        String? ovpnB64 = s.ovpnBase64;
+                        if (ovpnB64 == null || ovpnB64.isEmpty) {
+                          // Fetch full config using hostname
+                          final withConfig = await service.getServerWithConfig(s.hostname);
+                          if (withConfig == null || withConfig.ovpnBase64.isEmpty) {
+                            return;
+                          }
+                          ovpnB64 = withConfig.ovpnBase64;
+                        }
+
+                        final String profile = service.buildHardenedOvpn(ovpnB64);
                         _currentProfile = profile;
                         await ctrl.connect(profile);
                       },
