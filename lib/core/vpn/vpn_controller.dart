@@ -49,7 +49,7 @@ class VpnController {
       if (result is Future) {
         await Future.any([
           result,
-          Future.delayed(const Duration(seconds: 30), () => throw TimeoutException('Connection timeout', const Duration(seconds: 30))),
+          Future.delayed(const Duration(seconds: 15), () => throw TimeoutException('Connection timeout', const Duration(seconds: 15))),
         ]);
       }
       

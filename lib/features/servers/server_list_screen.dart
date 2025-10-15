@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/models/vpn_server.dart';
 import '../../core/models/vpngate_server.dart';
 
 class ServerListScreen extends ConsumerStatefulWidget {
-  final List<VpnGateServer> servers;
-  final void Function(VpnGateServer) onSelect;
+  final List<VpnServer> servers;
+  final void Function(VpnServer) onSelect;
   const ServerListScreen({super.key, required this.servers, required this.onSelect});
 
   @override
@@ -12,7 +13,7 @@ class ServerListScreen extends ConsumerStatefulWidget {
 }
 
 class _ServerListScreenState extends ConsumerState<ServerListScreen> {
-  List<VpnGateServer> _filteredServers = [];
+  List<VpnServer> _filteredServers = [];
   String _searchQuery = '';
   String _selectedCountry = 'All';
 
@@ -43,10 +44,10 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
     return ['All', ...countries];
   }
 
-  Widget _buildServerCard(VpnGateServer server) {
-    final speedMbps = (server.speedBps / 1e6).toStringAsFixed(1);
-    final isFast = server.pingMs < 100;
-    final isVeryFast = server.pingMs < 50;
+  Widget _buildServerCard(VpnServer server) {
+    final speedMbps = server.speedMbps.toStringAsFixed(1);
+    final isFast = server.isFast;
+    final isVeryFast = server.isVeryFast;
     
     Color speedColor;
     IconData speedIcon;
@@ -127,11 +128,22 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
         title: Row(
           children: [
             Expanded(
-              child: Text(
-                server.country,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    server.country,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    '${server.protocolIcon} ${server.protocolName}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ],
               ),
             ),
             Container(
@@ -141,7 +153,7 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                '${server.pingMs}ms',
+                '${server.pingMs ?? 9999}ms',
                 style: TextStyle(
                   color: speedColor,
                   fontSize: 12,
@@ -185,7 +197,7 @@ class _ServerListScreenState extends ConsumerState<ServerListScreen> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  'Score: ${server.score}',
+                  'Score: ${server.score ?? 0}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.6),
                   ),

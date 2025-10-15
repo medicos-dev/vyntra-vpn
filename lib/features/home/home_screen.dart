@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/server_scoring.dart';
 import '../../core/network/vpngate_service.dart';
+import '../../core/network/unified_vpn_service.dart';
+import '../../core/models/vpn_server.dart';
 import '../../core/vpn/reconnect_watchdog.dart';
 import '../../core/vpn/vpn_controller.dart';
 import '../servers/server_list_screen.dart';
 import '../settings/settings_screen.dart';
 
 final vpngateProvider = Provider((ref) => VpnGateService());
+final unifiedVpnProvider = Provider((ref) => UnifiedVpnService());
 final vpnControllerProvider = Provider((ref) => VpnController());
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -24,7 +27,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStateMixin {
-  List servers = [];
+  List<VpnServer> servers = [];
   String? _currentProfile;
   ReconnectWatchdog? _watchdog;
   late AnimationController _pulseController;
@@ -73,30 +76,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
-      final service = ref.read(vpngateProvider);
+      final unifiedService = ref.read(unifiedVpnProvider);
       
-      // Start loading servers in background
-      service.fetchServers().then((list) {
-        if (mounted) {
-          setState(() {
-            servers = ServerScoring.sortBest(list).take(20).toList();
-            _loadingServers = false;
-          });
-        }
-      });
+      // Fetch all servers from unified service
+      final allServers = await unifiedService.fetchAllServers();
       
-      // Show first 10 servers immediately for better UX
-      final quickList = await service.fetchServersQuick();
-      if (mounted && quickList.isNotEmpty) {
+      if (mounted && allServers.isNotEmpty) {
         setState(() {
-          servers = ServerScoring.sortBest(quickList).take(10).toList();
+          // Sort by ping and take top 20
+          servers = allServers
+            .where((s) => s.pingMs != null)
+            .toList()
+            ..sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
+          servers = servers.take(20).toList();
+          _loadingServers = false;
+        });
+      } else if (mounted) {
+        setState(() {
           _loadingServers = false;
         });
       }
     } catch (e) {
-      setState(() {
-        _loadingServers = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loadingServers = false;
+        });
+      }
     }
   }
 
@@ -106,9 +111,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       _loadingServers = true;
     });
     
-    // Wait a bit before retrying
-    await Future.delayed(const Duration(seconds: 1));
-    await _loadServers();
+    try {
+      final unifiedService = ref.read(unifiedVpnProvider);
+      
+      // Force refresh (bypass cache)
+      final allServers = await unifiedService.forceRefresh();
+      
+      if (mounted && allServers.isNotEmpty) {
+        setState(() {
+          // Sort by ping and take top 20
+          servers = allServers
+            .where((s) => s.pingMs != null)
+            .toList()
+            ..sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
+          servers = servers.take(20).toList();
+          _loadingServers = false;
+        });
+      } else if (mounted) {
+        setState(() {
+          _loadingServers = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadingServers = false;
+        });
+      }
+    }
   }
 
   Future<void> _connectBest() async {
@@ -116,10 +146,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       await _loadServers();
       if (servers.isEmpty) return;
     }
-    final service = ref.read(vpngateProvider);
+    
     final ctrl = ref.read(vpnControllerProvider);
     final best = servers.first;
-    final profile = service.buildHardenedOvpn(best.ovpnBase64);
+    
+    // Handle different VPN protocols
+    String profile;
+    if (best.protocol == VpnProtocol.openvpn && best.ovpnBase64 != null && best.ovpnBase64!.isNotEmpty) {
+      final service = ref.read(vpngateProvider);
+      profile = service.buildHardenedOvpn(best.ovpnBase64!);
+    } else {
+      // For now, only support OpenVPN connections
+      // TODO: Add WireGuard and Shadowsocks support
+      return;
+    }
+    
     _currentProfile = profile;
     await ctrl.connect(profile);
   }
@@ -127,6 +168,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   Future<void> _disconnect() async {
     final ctrl = ref.read(vpnControllerProvider);
     await ctrl.disconnect();
+  }
+
+  String _getServerCountText() {
+    if (servers.isEmpty) return 'No servers available';
+    
+    final openvpnCount = servers.where((s) => s.protocol == VpnProtocol.openvpn).length;
+    final wireguardCount = servers.where((s) => s.protocol == VpnProtocol.wireguard).length;
+    final shadowsocksCount = servers.where((s) => s.protocol == VpnProtocol.shadowsocks).length;
+    
+    final List<String> parts = [];
+    if (openvpnCount > 0) parts.add('$openvpnCount OpenVPN');
+    if (wireguardCount > 0) parts.add('$wireguardCount WireGuard');
+    if (shadowsocksCount > 0) parts.add('$shadowsocksCount Shadowsocks');
+    
+    return '${servers.length} servers: ${parts.join(', ')}';
   }
 
   @override
@@ -421,7 +477,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                       ? 'Loading servers...' 
                       : servers.isEmpty 
                           ? 'No servers available - tap refresh to retry'
-                          : '${servers.length} premium servers available',
+                          : _getServerCountText(),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                   ),
@@ -553,11 +609,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                 onPressed: () {
                   Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => ServerListScreen(
-                      servers: List.from(servers),
+                      servers: servers,
                       onSelect: (s) async {
-                        final service = ref.read(vpngateProvider);
                         final ctrl = ref.read(vpnControllerProvider);
-                        final profile = service.buildHardenedOvpn(s.ovpnBase64);
+                        
+                        // Handle different VPN protocols
+                        String profile;
+                        if (s.protocol == VpnProtocol.openvpn && s.ovpnBase64 != null && s.ovpnBase64!.isNotEmpty) {
+                          final service = ref.read(vpngateProvider);
+                          profile = service.buildHardenedOvpn(s.ovpnBase64!);
+                        } else {
+                          // For now, only support OpenVPN connections
+                          // TODO: Add WireGuard and Shadowsocks support
+                          return;
+                        }
+                        
                         _currentProfile = profile;
                         await ctrl.connect(profile);
                       },
