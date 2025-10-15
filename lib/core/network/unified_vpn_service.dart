@@ -2,8 +2,6 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/vpn_server.dart';
-import 'vpngate_service.dart';
-import 'outline_service.dart';
 
 class UnifiedVpnService {
   final Dio _dio = Dio(
@@ -13,13 +11,8 @@ class UnifiedVpnService {
     ),
   );
 
-  final VpnGateService _vpngateService = VpnGateService();
-  final OutlineService _outlineService = OutlineService();
-
   // Vercel API URLs
   static const String _unifiedApiUrl = 'https://vyntra-vpn.vercel.app/api/vpn-unified';
-  static const String _cloudflareApiUrl = 'https://vyntra-vpn.vercel.app/api/cloudflare-warp';
-  static const String _outlineApiUrl = 'https://vyntra-vpn.vercel.app/api/outline-vpn';
   
   // Cache keys
   static const String _cacheKey = 'unified_vpn_servers_cache';
@@ -36,40 +29,16 @@ class UnifiedVpnService {
         return cachedData;
       }
 
-      // Fetch fresh data from all sources
-      final allServers = <VpnServer>[];
+      // Fetch fresh data from unified API
+      final allServers = await _fetchFromUnifiedApi();
       
-      // Fetch VPNGate servers
-      try {
-        final vpngateServers = await _fetchVpnGateServers();
-        allServers.addAll(vpngateServers);
-      } catch (e) {
-        // Continue with other services if VPNGate fails
-      }
-
-      // Fetch Cloudflare WARP servers
-      try {
-        final cloudflareServers = await _fetchCloudflareServers();
-        allServers.addAll(cloudflareServers);
-      } catch (e) {
-        // Continue with other services if Cloudflare fails
-      }
-
-      // Fetch Outline VPN servers
-      try {
-        final outlineServers = await _fetchOutlineServers();
-        allServers.addAll(outlineServers);
-      } catch (e) {
-        // Continue with other services if Outline fails
-      }
-
       if (allServers.isNotEmpty) {
         // Cache the fresh data
         await _cacheData(allServers);
         return allServers;
       }
 
-      // If all fresh fetches fail, return cached data if available
+      // If unified API fails, return cached data if available
       final cachedDataFallback = await _getCachedData(ignoreExpiry: true);
       return cachedDataFallback ?? <VpnServer>[];
     } catch (e) {
@@ -79,29 +48,10 @@ class UnifiedVpnService {
     }
   }
 
-  Future<List<VpnServer>> _fetchVpnGateServers() async {
-    try {
-      // Use the existing VPNGate service
-      final vpngateServers = await _vpngateService.fetchServersFromVercel();
-      
-      return vpngateServers.map((server) => VpnServer.fromVpnGate(
-        hostName: server.hostName,
-        ip: server.ip,
-        country: server.country,
-        score: server.score,
-        pingMs: server.pingMs,
-        speedBps: server.speedBps,
-        ovpnBase64: server.ovpnBase64,
-      )).toList();
-    } catch (e) {
-      return <VpnServer>[];
-    }
-  }
-
-  Future<List<VpnServer>> _fetchCloudflareServers() async {
+  Future<List<VpnServer>> _fetchFromUnifiedApi() async {
     try {
       final Response response = await _dio.get(
-        _cloudflareApiUrl,
+        _unifiedApiUrl,
         options: Options(
           responseType: ResponseType.json,
           headers: {
@@ -118,40 +68,85 @@ class UnifiedVpnService {
       }
 
       final Map<String, dynamic> data = response.data;
-      final List<dynamic> serversJson = data['servers'] ?? [];
+      final Map<String, dynamic> services = data['services'] ?? {};
+      final List<VpnServer> allServers = <VpnServer>[];
 
-      return serversJson.map((json) => VpnServer.fromCloudflareWarp(
-        name: json['name'] ?? 'Unknown',
-        endpoint: json['endpoint'] ?? '',
-        publicKey: json['publicKey'] ?? '',
-        allowedIPs: List<String>.from(json['allowedIPs'] ?? []),
-        dns: List<String>.from(json['dns'] ?? []),
-        mtu: json['mtu'] ?? 1280,
-        persistentKeepalive: json['persistentKeepalive'] ?? 25,
-      )).toList();
+      // Parse VPNGate servers
+      if (services['vpngate'] != null) {
+        final vpngateData = services['vpngate'];
+        final List<dynamic> vpngateServers = vpngateData['allServers'] ?? [];
+        
+        for (final serverJson in vpngateServers) {
+          try {
+            final server = VpnServer.fromVpnGate(
+              hostName: serverJson['hostName'] ?? '',
+              ip: serverJson['ip'] ?? '',
+              country: serverJson['country'] ?? '',
+              score: serverJson['score'] ?? 0,
+              pingMs: serverJson['ping'] ?? 9999,
+              speedBps: serverJson['speed'] ?? 0,
+              ovpnBase64: '', // Will be fetched separately when needed
+            );
+            allServers.add(server);
+          } catch (e) {
+            // Skip invalid servers
+          }
+        }
+      }
+
+      // Parse Cloudflare WARP servers
+      if (services['cloudflareWarp'] != null) {
+        final cloudflareData = services['cloudflareWarp'];
+        final List<dynamic> cloudflareServers = cloudflareData['servers'] ?? [];
+        
+        for (final serverJson in cloudflareServers) {
+          try {
+            final server = VpnServer.fromCloudflareWarp(
+              name: serverJson['name'] ?? 'Unknown',
+              endpoint: serverJson['endpoint'] ?? '',
+              publicKey: serverJson['publicKey'] ?? '',
+              allowedIPs: List<String>.from(serverJson['allowedIPs'] ?? []),
+              dns: List<String>.from(serverJson['dns'] ?? []),
+              mtu: serverJson['mtu'] ?? 1280,
+              persistentKeepalive: serverJson['persistentKeepalive'] ?? 25,
+            );
+            allServers.add(server);
+          } catch (e) {
+            // Skip invalid servers
+          }
+        }
+      }
+
+      // Parse Outline VPN servers
+      if (services['outlineVpn'] != null) {
+        final outlineData = services['outlineVpn'];
+        final List<dynamic> outlineServers = outlineData['servers'] ?? [];
+        
+        for (final serverJson in outlineServers) {
+          try {
+            final server = VpnServer.fromOutline(
+              name: serverJson['name'] ?? 'Unknown',
+              hostname: serverJson['hostname'] ?? '',
+              port: serverJson['port'] ?? 8388,
+              method: serverJson['method'] ?? 'chacha20-ietf-poly1305',
+              password: serverJson['password'] ?? '',
+              description: serverJson['description'] ?? '',
+              location: serverJson['location'] ?? '',
+              latency: serverJson['latency'] ?? '',
+            );
+            allServers.add(server);
+          } catch (e) {
+            // Skip invalid servers
+          }
+        }
+      }
+
+      return allServers;
     } catch (e) {
       return <VpnServer>[];
     }
   }
 
-  Future<List<VpnServer>> _fetchOutlineServers() async {
-    try {
-      final outlineServers = await _outlineService.fetchOutlineServers();
-      
-      return outlineServers.map((server) => VpnServer.fromOutline(
-        name: server.name,
-        hostname: server.hostname,
-        port: server.port,
-        method: server.method,
-        password: server.password,
-        description: server.description,
-        location: server.location,
-        latency: server.latency,
-      )).toList();
-    } catch (e) {
-      return <VpnServer>[];
-    }
-  }
 
   Future<List<VpnServer>?> _getCachedData({bool ignoreExpiry = false}) async {
     try {

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/network/server_scoring.dart';
 import '../../core/network/vpngate_service.dart';
 import '../../core/network/unified_vpn_service.dart';
 import '../../core/models/vpn_server.dart';
@@ -384,7 +383,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       width: double.infinity,
       margin: const EdgeInsets.symmetric(horizontal: 32),
       child: ElevatedButton(
-        onPressed: isLoading ? null : (isConnected ? _disconnect : _connectBest),
+        onPressed: isLoading ? null : (isConnected ? _disconnect : (servers.isEmpty ? null : _connectBest)),
         style: ElevatedButton.styleFrom(
           backgroundColor: isConnected ? const Color(0xFFFF4444) : const Color(0xFF2196F3),
           foregroundColor: Colors.white,
@@ -563,11 +562,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     );
   }
 
-          @override
-          Widget build(BuildContext context) {
-            final ctrl = ref.read(vpnControllerProvider);
+  @override
+  Widget build(BuildContext context) {
+    final ctrl = ref.read(vpnControllerProvider);
     
-    return Scaffold(
+    return StreamBuilder<VpnState>(
+      stream: ctrl.state,
+      initialData: ctrl.current,
+      builder: (context, snapshot) {
+        final vpnState = snapshot.data ?? VpnState.disconnected;
+        
+        return Scaffold(
       appBar: AppBar(
         title: Row(
           children: [
@@ -681,38 +686,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         ],
       ),
       body: SafeArea(
-        child: StreamBuilder<VpnState>(
-          stream: ctrl.state,
-          initialData: ctrl.current,
-          builder: (context, snap) {
-            final state = snap.data ?? VpnState.disconnected;
-            final error = ctrl.lastError.isNotEmpty ? ctrl.lastError : null;
-            
-            return Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        _buildStatusCard(state, error),
-                        const SizedBox(height: 24),
-                        _buildServerInfo(),
-                        const SizedBox(height: 16),
-                        _buildSessionInfo(),
-                        const SizedBox(height: 32),
-                      ],
-                    ),
-                  ),
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildStatusCard(vpnState, ctrl.lastError),
+                    const SizedBox(height: 24),
+                    _buildServerInfo(),
+                    const SizedBox(height: 16),
+                    _buildSessionInfo(),
+                    const SizedBox(height: 32),
+                  ],
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: _buildConnectButton(state),
-                ),
-              ],
-            );
-          },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: _buildConnectButton(vpnState),
+            ),
+          ],
         ),
       ),
+    );
+      },
     );
   }
 }
