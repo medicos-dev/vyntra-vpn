@@ -48,7 +48,7 @@ class UnifiedVpnService {
     }
   }
 
-  Future<List<VpnServer>> _fetchFromUnifiedApi() async {
+  Future<List<VpnServer>> _fetchFromUnifiedApi({bool retried = false}) async {
     try {
       final Response response = await _dio.get(
         _unifiedApiUrl,
@@ -67,24 +67,31 @@ class UnifiedVpnService {
         return <VpnServer>[];
       }
 
-      final Map<String, dynamic> data = response.data;
-      final Map<String, dynamic> services = data['services'] ?? {};
+      final Map<String, dynamic> data = (response.data is Map<String, dynamic>
+          ? response.data as Map<String, dynamic>
+          : <String, dynamic>{});
+      final Map<String, dynamic> services = (data['services'] is Map<String, dynamic>
+          ? data['services'] as Map<String, dynamic>
+          : <String, dynamic>{});
       final List<VpnServer> allServers = <VpnServer>[];
 
       // Parse VPNGate servers
-      if (services['vpngate'] != null) {
-        final vpngateData = services['vpngate'];
-        final List<dynamic> vpngateServers = vpngateData['allServers'] ?? [];
+      if (services['vpngate'] is Map<String, dynamic>) {
+        final Map<String, dynamic> vpngateData = services['vpngate'] as Map<String, dynamic>;
+        final List<dynamic> vpngateServers = (vpngateData['allServers'] is List
+            ? vpngateData['allServers'] as List
+            : <dynamic>[]);
         
         for (final serverJson in vpngateServers) {
           try {
+            final Map<String, dynamic> m = serverJson is Map<String, dynamic> ? serverJson : <String, dynamic>{};
             final server = VpnServer.fromVpnGate(
-              hostName: serverJson['hostName'] ?? '',
-              ip: serverJson['ip'] ?? '',
-              country: serverJson['country'] ?? '',
-              score: serverJson['score'] ?? 0,
-              pingMs: serverJson['ping'] ?? 9999,
-              speedBps: serverJson['speed'] ?? 0,
+              hostName: (m['hostName'] ?? '').toString(),
+              ip: (m['ip'] ?? '').toString(),
+              country: (m['country'] ?? '').toString(),
+              score: (m['score'] is num ? (m['score'] as num).toInt() : 0),
+              pingMs: (m['ping'] is num ? (m['ping'] as num).toInt() : 9999),
+              speedBps: (m['speed'] is num ? (m['speed'] as num).toInt() : 0),
               ovpnBase64: '', // Will be fetched separately when needed
             );
             allServers.add(server);
@@ -95,20 +102,29 @@ class UnifiedVpnService {
       }
 
       // Parse Cloudflare WARP servers
-      if (services['cloudflareWarp'] != null) {
-        final cloudflareData = services['cloudflareWarp'];
-        final List<dynamic> cloudflareServers = cloudflareData['servers'] ?? [];
+      if (services['cloudflareWarp'] is Map<String, dynamic>) {
+        final Map<String, dynamic> cloudflareData = services['cloudflareWarp'] as Map<String, dynamic>;
+        final List<dynamic> cloudflareServers = (cloudflareData['servers'] is List
+            ? cloudflareData['servers'] as List
+            : <dynamic>[]);
         
         for (final serverJson in cloudflareServers) {
           try {
+            final Map<String, dynamic> m = serverJson is Map<String, dynamic> ? serverJson : <String, dynamic>{};
             final server = VpnServer.fromCloudflareWarp(
-              name: serverJson['name'] ?? 'Unknown',
-              endpoint: serverJson['endpoint'] ?? '',
-              publicKey: serverJson['publicKey'] ?? '',
-              allowedIPs: List<String>.from(serverJson['allowedIPs'] ?? []),
-              dns: List<String>.from(serverJson['dns'] ?? []),
-              mtu: serverJson['mtu'] ?? 1280,
-              persistentKeepalive: serverJson['persistentKeepalive'] ?? 25,
+              name: (m['name'] ?? 'Unknown').toString(),
+              endpoint: (m['endpoint'] ?? '').toString(),
+              publicKey: (m['publicKey'] ?? '').toString(),
+              allowedIPs: (m['allowedIPs'] is List)
+                  ? List<String>.from((m['allowedIPs'] as List).map((e) => e.toString()))
+                  : <String>[],
+              dns: (m['dns'] is List)
+                  ? List<String>.from((m['dns'] as List).map((e) => e.toString()))
+                  : <String>[],
+              mtu: (m['mtu'] is num ? (m['mtu'] as num).toInt() : 1280),
+              persistentKeepalive: (m['persistentKeepalive'] is num
+                  ? (m['persistentKeepalive'] as num).toInt()
+                  : 25),
             );
             allServers.add(server);
           } catch (e) {
@@ -118,27 +134,36 @@ class UnifiedVpnService {
       }
 
       // Parse Outline VPN servers
-      if (services['outlineVpn'] != null) {
-        final outlineData = services['outlineVpn'];
-        final List<dynamic> outlineServers = outlineData['servers'] ?? [];
+      if (services['outlineVpn'] is Map<String, dynamic>) {
+        final Map<String, dynamic> outlineData = services['outlineVpn'] as Map<String, dynamic>;
+        final List<dynamic> outlineServers = (outlineData['servers'] is List
+            ? outlineData['servers'] as List
+            : <dynamic>[]);
         
         for (final serverJson in outlineServers) {
           try {
+            final Map<String, dynamic> m = serverJson is Map<String, dynamic> ? serverJson : <String, dynamic>{};
             final server = VpnServer.fromOutline(
-              name: serverJson['name'] ?? 'Unknown',
-              hostname: serverJson['hostname'] ?? '',
-              port: serverJson['port'] ?? 8388,
-              method: serverJson['method'] ?? 'chacha20-ietf-poly1305',
-              password: serverJson['password'] ?? '',
-              description: serverJson['description'] ?? '',
-              location: serverJson['location'] ?? '',
-              latency: serverJson['latency'] ?? '',
+              name: (m['name'] ?? 'Unknown').toString(),
+              hostname: (m['hostname'] ?? '').toString(),
+              port: (m['port'] is num ? (m['port'] as num).toInt() : 8388),
+              method: (m['method'] ?? 'chacha20-ietf-poly1305').toString(),
+              password: (m['password'] ?? '').toString(),
+              description: (m['description'] ?? '').toString(),
+              location: (m['location'] ?? '').toString(),
+              latency: (m['latency'] ?? '').toString(),
             );
             allServers.add(server);
           } catch (e) {
             // Skip invalid servers
           }
         }
+      }
+
+      if (allServers.isEmpty && !retried) {
+        // Retry once after a short delay
+        await Future.delayed(const Duration(seconds: 2));
+        return _fetchFromUnifiedApi(retried: true);
       }
 
       return allServers;
