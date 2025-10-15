@@ -157,7 +157,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           }
         }
         if (ovpn == null || ovpn.isEmpty) {
-          continue; // try next candidate
+          // Try by IP as fallback mapping
+          final withConfigByIp = await vpngate.getServerWithConfig(candidate.ip);
+          if (withConfigByIp == null || withConfigByIp.ovpnBase64.isEmpty) {
+            continue; // try next
+          }
+          ovpn = withConfigByIp.ovpnBase64;
         }
         final profile = vpngate.buildHardenedOvpn(ovpn);
         _currentProfile = profile;
@@ -635,9 +640,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                           if (ovpnB64 == null || ovpnB64.isEmpty) {
                             final withConfig = await service.getServerWithConfig(s.hostname);
                             if (withConfig == null || withConfig.ovpnBase64.isEmpty) {
-                              return;
+                              // Try by IP
+                              final withConfigByIp = await service.getServerWithConfig(s.ip);
+                              if (withConfigByIp == null || withConfigByIp.ovpnBase64.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Config not found for this server. Try refresh or another server.')),
+                                );
+                                return;
+                              }
+                              ovpnB64 = withConfigByIp.ovpnBase64;
+                            } else {
+                              ovpnB64 = withConfig.ovpnBase64;
                             }
-                            ovpnB64 = withConfig.ovpnBase64;
                           }
                           final String profile = service.buildHardenedOvpn(ovpnB64);
                           _currentProfile = profile;

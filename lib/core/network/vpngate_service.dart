@@ -409,20 +409,30 @@ class VpnGateService {
       final servers = await fetchServersFromVercel();
       final server = servers.firstWhere(
         (s) => s.hostName == hostName,
-        orElse: () => throw Exception('Server not found'),
+        orElse: () => VpnGateServer(hostName: '', ip: '', country: '', score: 0, pingMs: 0, speedBps: 0, ovpnBase64: ''),
       );
 
       // If server doesn't have config, fetch from CSV
-      if (server.ovpnBase64.isEmpty) {
-        final csvServers = await _fetchFromVercel();
-        final csvServer = csvServers.firstWhere(
-          (s) => s.hostName == hostName,
-          orElse: () => throw Exception('Server not found in CSV'),
-        );
-        return csvServer;
+      if (server.ovpnBase64.isNotEmpty) {
+        return server;
       }
 
-      return server;
+      final csvServers = await _fetchFromVercel();
+      // Try by hostname first
+      final byHost = csvServers.where((s) => s.hostName == hostName && s.ovpnBase64.isNotEmpty);
+      if (byHost.isNotEmpty) return byHost.first;
+
+      // Fallback by IP if we can infer IP from unified list
+      final unifiedMatch = servers.firstWhere(
+        (s) => s.hostName == hostName,
+        orElse: () => VpnGateServer(hostName: '', ip: '', country: '', score: 0, pingMs: 0, speedBps: 0, ovpnBase64: ''),
+      );
+      if (unifiedMatch.ip.isNotEmpty) {
+        final byIp = csvServers.where((s) => s.ip == unifiedMatch.ip && s.ovpnBase64.isNotEmpty);
+        if (byIp.isNotEmpty) return byIp.first;
+      }
+
+      return null;
     } catch (e) {
       return null;
     }
