@@ -1,16 +1,33 @@
-# vyntra_app_aiks
+# Vyntra VPN - Serverless VPN App
 
-A new Flutter project.
+A free, serverless VPN app for Android built with Flutter, using Vercel API for server data.
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter application.
+- 🚀 **Free & Serverless** - No server setup required
+- 🔒 **Secure OpenVPN** - Uses VPNGate servers
+- 🌙 **Dark/Light Mode** - Switchable themes
+- ⚡ **Fast Connection** - Optimized server selection
+- 🔄 **Auto-Reconnect** - Persistent connection
+- ⏰ **1-Hour Sessions** - Free usage limit
+- 📱 **Android Only** - Optimized for mobile
 
-A few resources to get you started if this is your first Flutter project:
+## API Endpoint
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+The app fetches VPN server data from: `https://vyntra-vpn.vercel.app/api/vpngate`
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Deployment
+
+This repository contains the Vercel API files:
+- `api/vpngate.js` - API endpoint serving VPN server data
+- `vpngate.csv` - VPN server database (101 servers)
+- `package.json` - Node.js configuration
+- `vercel.json` - Vercel deployment config
+
+## Developer
+
+**Aiks - Aikya Naskar**
+
+## License
+
+Free for personal use.
