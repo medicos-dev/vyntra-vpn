@@ -10,11 +10,44 @@ export default async function handler(req, res) {
     // Read local CSV bundled with the project to avoid remote challenges
     const { fileURLToPath } = await import('url');
     const path = await import('path');
+    const fs = await import('fs');
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    const fs = await import('fs');
-    const csvPath = path.join(__dirname, '..', 'vpngate.csv');
-    const csv = fs.readFileSync(csvPath, 'utf8');
+
+    // Try multiple candidate locations for vpngate.csv in the Vercel bundle
+    const candidates = [
+      path.join(__dirname, 'vpngate.csv'),
+      path.join(__dirname, '..', 'vpngate.csv'),
+      path.join(process.cwd(), 'vpngate.csv'),
+      path.join(process.cwd(), 'vyntra_app_aiks', 'vpngate.csv'),
+    ];
+
+    let csv = null;
+    for (const p of candidates) {
+      try {
+        if (fs.existsSync(p)) {
+          csv = fs.readFileSync(p, 'utf8');
+          break;
+        }
+      } catch (_) { /* ignore */ }
+    }
+
+    // Fallback: fetch live CSV if local file not found
+    if (!csv) {
+      const bypassHeader = req.headers['x-vercel-protection-bypass'];
+      const headers = {
+        'User-Agent': 'Vyntra-VPN-Android/1.0',
+        'Accept': 'text/plain,*/*',
+        'Cache-Control': 'no-cache',
+      };
+      if (bypassHeader) headers['X-Vercel-Protection-Bypass'] = bypassHeader;
+      const resp = await fetch('https://www.vpngate.net/api/iphone/', { headers, cache: 'no-store' });
+      const text = await resp.text();
+      if (!resp.ok || !text || !text.includes('HostName')) {
+        return res.status(502).json({ error: 'Unable to load VPNGate CSV (local and remote failed)' });
+      }
+      csv = text;
+    }
     const lines = csv.split(/\r?\n/).filter(l => l && !l.startsWith('#') && !l.startsWith('*'));
     const header = lines.find(l => /HostName,/i.test(l));
     if (!header) return res.status(502).json({ error: 'Invalid CSV' });
