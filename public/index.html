@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vyntra VPN API</title>
+    <title>Vyntra VPN API - Multi-Protocol VPN Services</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -24,11 +24,21 @@
             text-align: center;
             margin-bottom: 30px;
         }
-        .api-info {
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .service-card {
             background: rgba(255, 255, 255, 0.2);
             padding: 20px;
             border-radius: 10px;
-            margin: 20px 0;
+            backdrop-filter: blur(5px);
+        }
+        .service-card h3 {
+            margin-top: 0;
+            color: #ffd700;
         }
         .endpoint {
             font-family: monospace;
@@ -36,37 +46,98 @@
             padding: 10px;
             border-radius: 5px;
             margin: 10px 0;
+            word-break: break-all;
+        }
+        .features {
+            list-style: none;
+            padding: 0;
+        }
+        .features li {
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .features li:before {
+            content: "✅ ";
+            margin-right: 8px;
         }
         .status {
             text-align: center;
             margin-top: 30px;
             font-size: 18px;
         }
+        .unified-endpoint {
+            background: rgba(0, 255, 0, 0.2);
+            border: 2px solid #00ff00;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🚀 Vyntra VPN API</h1>
+        <h1>🚀 Vyntra VPN API - Multi-Protocol VPN Services</h1>
         
-        <div class="api-info">
-            <h2>API Endpoint</h2>
-            <div class="endpoint">GET /api/vpngate</div>
-            <p>Returns CSV data with 101 VPN servers from VPNGate.</p>
+        <div class="unified-endpoint">
+            <h2>🌟 Unified API Endpoint</h2>
+            <div class="endpoint">GET /api/vpn-unified</div>
+            <p>Get all VPN services in one response with recommendations!</p>
         </div>
         
-        <div class="api-info">
-            <h2>Usage</h2>
-            <p>This API serves VPN server configurations for the Vyntra VPN Android app.</p>
-            <p>All servers are free and provided by VPNGate community.</p>
+        <div class="services-grid">
+            <div class="service-card">
+                <h3>🔒 VPNGate (OpenVPN)</h3>
+                <div class="endpoint">GET /api/vpngate</div>
+                <p>Free OpenVPN servers from VPNGate community</p>
+                <ul class="features">
+                    <li>101+ Free servers</li>
+                    <li>OpenVPN protocol</li>
+                    <li>No registration required</li>
+                    <li>Community-driven</li>
+                </ul>
+            </div>
+            
+            <div class="service-card">
+                <h3>⚡ Cloudflare WARP (WireGuard)</h3>
+                <div class="endpoint">GET /api/cloudflare-warp</div>
+                <p>Fast and secure VPN powered by Cloudflare</p>
+                <ul class="features">
+                    <li>Fastest speeds</li>
+                    <li>Global CDN network</li>
+                    <li>Privacy focused</li>
+                    <li>Free tier available</li>
+                </ul>
+            </div>
+            
+            <div class="service-card">
+                <h3>🛡️ Outline VPN (Shadowsocks)</h3>
+                <div class="endpoint">GET /api/outline-vpn</div>
+                <p>Secure VPN powered by Shadowsocks protocol</p>
+                <ul class="features">
+                    <li>Shadowsocks protocol</li>
+                    <li>High performance</li>
+                    <li>Easy setup</li>
+                    <li>Open source</li>
+                </ul>
+            </div>
         </div>
         
-        <div class="api-info">
-            <h2>Developer</h2>
+        <div class="service-card">
+            <h3>📱 Usage Examples</h3>
+            <div class="endpoint">GET /api/vpn-unified?type=vpngate</div>
+            <div class="endpoint">GET /api/vpn-unified?type=cloudflare-warp</div>
+            <div class="endpoint">GET /api/vpn-unified?type=outline-vpn</div>
+            <p>Use query parameters to get specific service data</p>
+        </div>
+        
+        <div class="service-card">
+            <h3>👨‍💻 Developer</h3>
             <p><strong>Aiks - Aikya Naskar</strong></p>
+            <p>Multi-protocol VPN API supporting OpenVPN, WireGuard, and Shadowsocks</p>
         </div>
         
         <div class="status">
-            ✅ API is running and ready to serve VPN data!
+            ✅ All VPN services are running and ready to serve data!
         </div>
     </div>
 </body>

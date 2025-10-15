@@ -4,6 +4,15 @@
   "functions": {
     "api/vpngate.js": {
       "maxDuration": 10
+    },
+    "api/cloudflare-warp.js": {
+      "maxDuration": 10
+    },
+    "api/outline-vpn.js": {
+      "maxDuration": 10
+    },
+    "api/vpn-unified.js": {
+      "maxDuration": 15
     }
   },
   "headers": [
