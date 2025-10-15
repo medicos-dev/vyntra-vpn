@@ -63,7 +63,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         currentProfileProvider: () async => _currentProfile,
       );
       await _watchdog!.start();
-      await _loadServers();
+      // Always hard-refresh servers on app start
+      await _retryLoadServers();
     });
   }
 
