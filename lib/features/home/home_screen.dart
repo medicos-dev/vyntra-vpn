@@ -82,7 +82,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       if (mounted) {
         setState(() {
           // Prefer lower ping first when available, but keep all protocols
-          final list = List<VpnServer>.from(allServers);
+          final list = List<VpnServer>.from(
+            allServers.where((s) => s.protocol == VpnProtocol.openvpn),
+          );
           list.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
           servers = list; // Do not truncate so counts are accurate
           _loadingServers = false;
@@ -175,9 +177,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   String _getServerCountText() {
     if (servers.isEmpty) return 'No servers available';
     
-    final openvpnCount = servers.where((s) => s.protocol == VpnProtocol.openvpn).length;
-    final wireguardCount = servers.where((s) => s.protocol == VpnProtocol.wireguard).length;
-    final shadowsocksCount = servers.where((s) => s.protocol == VpnProtocol.shadowsocks).length;
+    final openvpnCount = servers.length;
+    final wireguardCount = 0;
+    final shadowsocksCount = 0;
     
     final List<String> parts = [];
     if (openvpnCount > 0) parts.add('$openvpnCount OpenVPN');

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/vpn_server.dart';
+import '../config/feature_flags.dart';
 
 class UnifiedVpnService {
   final Dio _dio = Dio(
@@ -109,8 +110,10 @@ class UnifiedVpnService {
         }
       }
 
-      // Parse Cloudflare WARP servers (support aliases)
-      final Map<String, dynamic>? cloudflareData = _pickService(services, const ['cloudflareWarp', 'cloudflare_warp', 'CloudflareWARP', 'warp']);
+      // Cloudflare WARP (disabled by flag)
+      final Map<String, dynamic>? cloudflareData = kEnableCloudflareWarp
+          ? _pickService(services, const ['cloudflareWarp', 'cloudflare_warp', 'CloudflareWARP', 'warp'])
+          : null;
       if (cloudflareData != null) {
         final List<dynamic> cloudflareServers = (cloudflareData['servers'] is List
             ? cloudflareData['servers'] as List
@@ -141,8 +144,10 @@ class UnifiedVpnService {
         }
       }
 
-      // Parse Outline VPN servers (support aliases and nested per-country lists)
-      final Map<String, dynamic>? outlineData = _pickService(services, const ['outlineVpn', 'outline_vpn', 'OutlineVPN', 'outline']);
+      // Outline VPN (disabled by flag)
+      final Map<String, dynamic>? outlineData = kEnableOutlineVpn
+          ? _pickService(services, const ['outlineVpn', 'outline_vpn', 'OutlineVPN', 'outline'])
+          : null;
       if (outlineData != null) {
         final dynamic serversData = outlineData['servers'];
         final List<dynamic> outlineServers = serversData is List
