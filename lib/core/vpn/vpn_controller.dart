@@ -38,7 +38,7 @@ class VpnController {
     }
   }
 
-  Future<void> connect(String ovpnContent) async {
+  Future<bool> connect(String ovpnContent) async {
     try {
       _set(VpnState.connecting);
       _lastError = '';
@@ -50,7 +50,7 @@ class VpnController {
       if (result is Future) {
         await Future.any([
           result,
-          Future.delayed(const Duration(seconds: 15), () => throw TimeoutException('Connection timeout', const Duration(seconds: 15))),
+          Future.delayed(const Duration(seconds: 25), () => throw TimeoutException('Connection timeout', const Duration(seconds: 25))),
         ]);
       }
       
@@ -61,10 +61,11 @@ class VpnController {
           _sessionManager.startSession(); // Start 1-hour session
         }
       });
-      
+      return true;
     } catch (e) {
       _lastError = 'Connection failed: $e';
       _set(VpnState.failed);
+      return false;
     }
   }
 

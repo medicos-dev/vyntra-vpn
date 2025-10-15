@@ -161,11 +161,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         }
         final profile = vpngate.buildHardenedOvpn(ovpn);
         _currentProfile = profile;
-        await ctrl.connect(profile);
-        return; // stop after first successful kick-off
+        final ok = await ctrl.connect(profile);
+        if (ok) return; // stop after first successful kick-off
       } catch (_) {
         // try next candidate
       }
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No working OpenVPN config found. Please refresh and try another server.')),
+      );
     }
   }
 
