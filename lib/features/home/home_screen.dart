@@ -132,11 +132,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     }
     
     final ctrl = ref.read(vpnControllerProvider);
-    // Prefer the fastest OpenVPN server we can actually connect to
+    // Prefer the fastest OpenVPN server using highest speed first, then lowest ping
     final List<VpnServer> openvpnServers = servers
         .where((s) => s.protocol == VpnProtocol.openvpn)
         .toList();
-    openvpnServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
+    openvpnServers.sort((a, b) {
+      final int aspeed = a.speedBps ?? 0;
+      final int bspeed = b.speedBps ?? 0;
+      if (bspeed != aspeed) return bspeed.compareTo(aspeed); // higher speed first
+      return (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999); // then lower ping
+    });
     if (openvpnServers.isEmpty) return;
     final VpnServer target = openvpnServers.first;
 
