@@ -15,6 +15,8 @@ class VpnGateService {
   // Vercel API URLs - updated with actual deployment URLs
   static const String _vercelApiUrl = 'https://vyntra-vpn.vercel.app/api/vpngate';
   static const String _unifiedApiUrl = 'https://vyntra-vpn.vercel.app/api/vpn-unified';
+  // Vercel protection bypass token (automation secret)
+  static const String _vercelBypassToken = 'thJgAkOY1niCHIBLu8BmWuqFD02VP0Bb';
   
   // Cache keys
   static const String _cacheKey = 'vpngate_csv_cache';
@@ -118,6 +120,7 @@ class VpnGateService {
             'Accept': 'application/json',
             'Cache-Control': 'no-cache',
             'User-Agent': 'Vyntra-VPN-Android/1.0',
+            if (_vercelBypassToken.isNotEmpty) 'x-vercel-protection-bypass': _vercelBypassToken,
           },
           validateStatus: (status) => status! < 500,
         ),
@@ -173,6 +176,7 @@ class VpnGateService {
             'Accept': 'text/csv,text/plain,*/*',
             'Cache-Control': 'no-cache',
             'User-Agent': 'Vyntra-VPN-Android/1.0',
+            if (_vercelBypassToken.isNotEmpty) 'x-vercel-protection-bypass': _vercelBypassToken,
           },
           validateStatus: (status) => status! < 500,
         ),
@@ -405,23 +409,24 @@ class VpnGateService {
   // Method to get server with full Base64 config by host or IP
   Future<VpnGateServer?> getServerWithConfig(String id) async {
     try {
+      final String needle = id.trim().toLowerCase();
       // Prefer direct CSV lookup since it contains Base64
       final csvServers = await _fetchFromVercel();
       // Exact hostname match
-      final byHost = csvServers.where((s) => s.hostName == id && s.ovpnBase64.isNotEmpty);
+      final byHost = csvServers.where((s) => s.hostName.trim().toLowerCase() == needle && s.ovpnBase64.isNotEmpty);
       if (byHost.isNotEmpty) return byHost.first;
       // Exact IP match
-      final byIp = csvServers.where((s) => s.ip == id && s.ovpnBase64.isNotEmpty);
+      final byIp = csvServers.where((s) => s.ip.trim() == id.trim() && s.ovpnBase64.isNotEmpty);
       if (byIp.isNotEmpty) return byIp.first;
 
       // As a final fallback, try mapping from unified list by hostname to its IP, then search CSV by that IP
       final unifiedServers = await fetchServersFromVercel();
       final unifiedMatch = unifiedServers.firstWhere(
-        (s) => s.hostName == id || s.ip == id,
+        (s) => s.hostName.trim().toLowerCase() == needle || s.ip.trim() == id.trim(),
         orElse: () => VpnGateServer(hostName: '', ip: '', country: '', score: 0, pingMs: 0, speedBps: 0, ovpnBase64: ''),
       );
       if (unifiedMatch.ip.isNotEmpty) {
-        final byIp2 = csvServers.where((s) => s.ip == unifiedMatch.ip && s.ovpnBase64.isNotEmpty);
+        final byIp2 = csvServers.where((s) => s.ip.trim() == unifiedMatch.ip.trim() && s.ovpnBase64.isNotEmpty);
         if (byIp2.isNotEmpty) return byIp2.first;
       }
 
