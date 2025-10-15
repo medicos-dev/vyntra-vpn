@@ -169,6 +169,10 @@ class UnifiedVpnService {
 
       // Parse cached JSON
       final List<dynamic> jsonList = json.decode(cachedJson);
+      // If cache exists but is empty, treat as no-cache so we refetch fresh data
+      if (!ignoreExpiry && (jsonList.isEmpty)) {
+        return null;
+      }
       return jsonList.map((json) => _vpnServerFromJson(json)).toList();
     } catch (e) {
       return null;
@@ -183,8 +187,15 @@ class UnifiedVpnService {
       final jsonList = servers.map((server) => _vpnServerToJson(server)).toList();
       final jsonString = json.encode(jsonList);
       
-      await prefs.setString(_cacheKey, jsonString);
-      await prefs.setInt(_cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
+      // Only cache if we actually have servers
+      if (servers.isNotEmpty) {
+        await prefs.setString(_cacheKey, jsonString);
+        await prefs.setInt(_cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
+      } else {
+        // Clear cache if no servers to avoid persisting empty state
+        await prefs.remove(_cacheKey);
+        await prefs.remove(_cacheTimestampKey);
+      }
     } catch (e) {
       // Ignore cache errors
     }
@@ -261,7 +272,12 @@ class UnifiedVpnService {
   // Method to force refresh (bypass cache)
   Future<List<VpnServer>> forceRefresh() async {
     await clearCache();
-    return await fetchAllServers();
+    // Bypass cache and hit unified API directly
+    final fresh = await _fetchFromUnifiedApi();
+    if (fresh.isNotEmpty) {
+      await _cacheData(fresh);
+    }
+    return fresh;
   }
 
   // Get servers by protocol
