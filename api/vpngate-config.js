@@ -24,10 +24,17 @@ export default async function handler(req, res) {
         'Cache-Control': 'no-cache',
       };
       if (bypassHeader) headers['X-Vercel-Protection-Bypass'] = bypassHeader;
-      const resp = await fetch('https://www.vpngate.net/api/iphone/', { headers, cache: 'no-store' });
-      const text = await resp.text();
-      if (resp.ok && text && /hostname/i.test(text)) {
-        csv = text;
+      const urls = [
+        'https://www.vpngate.net/api/iphone/',
+        'http://www.vpngate.net/api/iphone/',
+        'http://vpngate.net/api/iphone/'
+      ];
+      for (const u of urls) {
+        try {
+          const resp = await fetch(u, { headers, cache: 'no-store' });
+          const text = await resp.text();
+          if (resp.ok && text && /hostname/i.test(text)) { csv = text; break; }
+        } catch (_) { /* try next */ }
       }
     } catch (_) { /* ignore and fallback */ }
 
@@ -110,8 +117,9 @@ export default async function handler(req, res) {
       const row = lines[i];
       const parts = splitCsvRow(row);
       if (parts.length < Math.max(hostIdx, ipIdx, b64Idx) + 1) continue;
-      const hn = (parts[hostIdx] || '').trim().toLowerCase();
-      const ip = (parts[ipIdx] || '').trim();
+      const trimQuotes = (s) => (s || '').trim().replace(/^"|"$/g, '');
+      const hn = trimQuotes(parts[hostIdx]).toLowerCase();
+      const ip = trimQuotes(parts[ipIdx]);
       if (hn === needle || ip === hostOrIp.trim()) {
         b64 = (parts[b64Idx] || '').trim();
         if (b64) break;
