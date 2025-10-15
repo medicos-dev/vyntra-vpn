@@ -3,11 +3,7 @@
   "version": "1.0.0",
   "description": "Vercel API for Vyntra VPN server data",
   "main": "api/vpngate.js",
-  "scripts": {
-    "dev": "vercel dev",
-    "build": "echo 'No build step required'",
-    "start": "vercel dev"
-  },
+  "scripts": {},
   "dependencies": {},
   "engines": {
     "node": ">=18.0.0"
