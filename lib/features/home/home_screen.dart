@@ -63,8 +63,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         currentProfileProvider: () async => _currentProfile,
       );
       await _watchdog!.start();
-      // Always hard-refresh servers on app start
-      await _retryLoadServers();
+      // On app start: hard-refresh unless already connected (then do a soft load)
+      if (ctrl.current == VpnState.connected) {
+        await _loadServers();
+      } else {
+        await _retryLoadServers();
+      }
     });
   }
 
