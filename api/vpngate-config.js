@@ -18,6 +18,7 @@ export default async function handler(req, res) {
     const candidates = [
       path.join(__dirname, 'vpngate.csv'),
       path.join(__dirname, '..', 'vpngate.csv'),
+      path.join(__dirname, '..', 'data', 'vpngate.csv'),
       path.join(process.cwd(), 'vpngate.csv'),
       path.join(process.cwd(), 'vyntra_app_aiks', 'vpngate.csv'),
     ];
