@@ -162,12 +162,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           }
         }
         if (ovpn == null || ovpn.isEmpty) {
-          // Try by IP as fallback mapping
-          final withConfigByIp = await vpngate.getServerWithConfig(candidate.ip);
-          if (withConfigByIp == null || withConfigByIp.ovpnBase64.isEmpty) {
-            continue; // try next
+          // Try by hostname then IP
+          final withConfigHost = await vpngate.getServerWithConfig(candidate.hostname);
+          if (withConfigHost != null && withConfigHost.ovpnBase64.isNotEmpty) {
+            ovpn = withConfigHost.ovpnBase64;
+          } else {
+            final withConfigByIp = await vpngate.getServerWithConfig(candidate.ip);
+            if (withConfigByIp == null || withConfigByIp.ovpnBase64.isEmpty) {
+              continue; // try next
+            }
+            ovpn = withConfigByIp.ovpnBase64;
           }
-          ovpn = withConfigByIp.ovpnBase64;
         }
         final profile = vpngate.buildHardenedOvpn(ovpn);
         _currentProfile = profile;
@@ -643,9 +648,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                           final service = ref.read(vpngateProvider);
                           String? ovpnB64 = s.ovpnBase64;
                           if (ovpnB64 == null || ovpnB64.isEmpty) {
+                            // Try by hostname then IP
                             final withConfig = await service.getServerWithConfig(s.hostname);
                             if (withConfig == null || withConfig.ovpnBase64.isEmpty) {
-                              // Try by IP
                               final withConfigByIp = await service.getServerWithConfig(s.ip);
                               if (withConfigByIp == null || withConfigByIp.ovpnBase64.isEmpty) {
                                 ScaffoldMessenger.of(context).showSnackBar(

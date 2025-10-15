@@ -402,34 +402,27 @@ class VpnGateService {
     return await fetchServersFromVercel();
   }
 
-  // Method to get server with full Base64 config
-  Future<VpnGateServer?> getServerWithConfig(String hostName) async {
+  // Method to get server with full Base64 config by host or IP
+  Future<VpnGateServer?> getServerWithConfig(String id) async {
     try {
-      // First try to get from unified API
-      final servers = await fetchServersFromVercel();
-      final server = servers.firstWhere(
-        (s) => s.hostName == hostName,
-        orElse: () => VpnGateServer(hostName: '', ip: '', country: '', score: 0, pingMs: 0, speedBps: 0, ovpnBase64: ''),
-      );
-
-      // If server doesn't have config, fetch from CSV
-      if (server.ovpnBase64.isNotEmpty) {
-        return server;
-      }
-
+      // Prefer direct CSV lookup since it contains Base64
       final csvServers = await _fetchFromVercel();
-      // Try by hostname first
-      final byHost = csvServers.where((s) => s.hostName == hostName && s.ovpnBase64.isNotEmpty);
+      // Exact hostname match
+      final byHost = csvServers.where((s) => s.hostName == id && s.ovpnBase64.isNotEmpty);
       if (byHost.isNotEmpty) return byHost.first;
+      // Exact IP match
+      final byIp = csvServers.where((s) => s.ip == id && s.ovpnBase64.isNotEmpty);
+      if (byIp.isNotEmpty) return byIp.first;
 
-      // Fallback by IP if we can infer IP from unified list
-      final unifiedMatch = servers.firstWhere(
-        (s) => s.hostName == hostName,
+      // As a final fallback, try mapping from unified list by hostname to its IP, then search CSV by that IP
+      final unifiedServers = await fetchServersFromVercel();
+      final unifiedMatch = unifiedServers.firstWhere(
+        (s) => s.hostName == id || s.ip == id,
         orElse: () => VpnGateServer(hostName: '', ip: '', country: '', score: 0, pingMs: 0, speedBps: 0, ovpnBase64: ''),
       );
       if (unifiedMatch.ip.isNotEmpty) {
-        final byIp = csvServers.where((s) => s.ip == unifiedMatch.ip && s.ovpnBase64.isNotEmpty);
-        if (byIp.isNotEmpty) return byIp.first;
+        final byIp2 = csvServers.where((s) => s.ip == unifiedMatch.ip && s.ovpnBase64.isNotEmpty);
+        if (byIp2.isNotEmpty) return byIp2.first;
       }
 
       return null;
