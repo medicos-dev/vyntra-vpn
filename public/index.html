@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vyntra VPN API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .api-info {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .endpoint {
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .status {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Vyntra VPN API</h1>
+        
+        <div class="api-info">
+            <h2>API Endpoint</h2>
+            <div class="endpoint">GET /api/vpngate</div>
+            <p>Returns CSV data with 101 VPN servers from VPNGate.</p>
+        </div>
+        
+        <div class="api-info">
+            <h2>Usage</h2>
+            <p>This API serves VPN server configurations for the Vyntra VPN Android app.</p>
+            <p>All servers are free and provided by VPNGate community.</p>
+        </div>
+        
+        <div class="api-info">
+            <h2>Developer</h2>
+            <p><strong>Aiks - Aikya Naskar</strong></p>
+        </div>
+        
+        <div class="status">
+            ✅ API is running and ready to serve VPN data!
+        </div>
+    </div>
+</body>
+</html>

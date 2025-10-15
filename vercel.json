@@ -1,4 +1,17 @@
 {
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/vpngate.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/vpngate",
+      "dest": "/api/vpngate.js"
+    }
+  ],
   "functions": {
     "api/vpngate.js": {
       "maxDuration": 10
