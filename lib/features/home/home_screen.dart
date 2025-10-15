@@ -143,22 +143,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       return (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999); // then lower ping
     });
     if (openvpnServers.isEmpty) return;
-    final VpnServer target = openvpnServers.first;
 
     final vpngate = ref.read(vpngateProvider);
-    String? ovpn = target.ovpnBase64;
-    if (ovpn == null || ovpn.isEmpty) {
-      // Fetch full config on-demand using hostname
-      final withConfig = await vpngate.getServerWithConfig(target.hostname);
-      if (withConfig != null && withConfig.ovpnBase64.isNotEmpty) {
-        ovpn = withConfig.ovpnBase64;
+    for (final candidate in openvpnServers) {
+      try {
+        String? ovpn = candidate.ovpnBase64;
+        if (ovpn == null || ovpn.isEmpty) {
+          final withConfig = await vpngate.getServerWithConfig(candidate.hostname);
+          if (withConfig != null && withConfig.ovpnBase64.isNotEmpty) {
+            ovpn = withConfig.ovpnBase64;
+          }
+        }
+        if (ovpn == null || ovpn.isEmpty) {
+          continue; // try next candidate
+        }
+        final profile = vpngate.buildHardenedOvpn(ovpn);
+        _currentProfile = profile;
+        await ctrl.connect(profile);
+        return; // stop after first successful kick-off
+      } catch (_) {
+        // try next candidate
       }
     }
-    if (ovpn == null || ovpn.isEmpty) return;
-
-    final profile = vpngate.buildHardenedOvpn(ovpn);
-    _currentProfile = profile;
-    await ctrl.connect(profile);
   }
 
   Future<void> _disconnect() async {
@@ -482,7 +488,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
             ),
           ),
           IconButton(
-            onPressed: _loadingServers ? null : (servers.isEmpty ? _retryLoadServers : _loadServers),
+            onPressed: _loadingServers ? null : _retryLoadServers,
             icon: _loadingServers 
                 ? const SizedBox(
                     width: 20,
@@ -490,7 +496,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.refresh_rounded),
-            tooltip: servers.isEmpty ? 'Retry loading servers' : 'Refresh servers',
+            tooltip: 'Hard refresh servers',
             style: IconButton.styleFrom(
               backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
             ),
@@ -615,25 +621,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                       onSelect: (s) async {
                         final ctrl = ref.read(vpnControllerProvider);
                         
-                        // Only OpenVPN is handled for now; fetch config on-demand if missing
-                        if (s.protocol != VpnProtocol.openvpn) {
-                          return; // TODO: Add WireGuard and Shadowsocks support
-                        }
-
-                        final service = ref.read(vpngateProvider);
-                        String? ovpnB64 = s.ovpnBase64;
-                        if (ovpnB64 == null || ovpnB64.isEmpty) {
-                          // Fetch full config using hostname
-                          final withConfig = await service.getServerWithConfig(s.hostname);
-                          if (withConfig == null || withConfig.ovpnBase64.isEmpty) {
-                            return;
+                        // Handle different protocols
+                        if (s.protocol == VpnProtocol.openvpn) {
+                          final service = ref.read(vpngateProvider);
+                          String? ovpnB64 = s.ovpnBase64;
+                          if (ovpnB64 == null || ovpnB64.isEmpty) {
+                            final withConfig = await service.getServerWithConfig(s.hostname);
+                            if (withConfig == null || withConfig.ovpnBase64.isEmpty) {
+                              return;
+                            }
+                            ovpnB64 = withConfig.ovpnBase64;
                           }
-                          ovpnB64 = withConfig.ovpnBase64;
+                          final String profile = service.buildHardenedOvpn(ovpnB64);
+                          _currentProfile = profile;
+                          Navigator.of(context).pop();
+                          await ctrl.connect(profile);
+                          return;
                         }
 
-                        final String profile = service.buildHardenedOvpn(ovpnB64);
-                        _currentProfile = profile;
-                        await ctrl.connect(profile);
+                        if (s.protocol == VpnProtocol.shadowsocks) {
+                          Navigator.of(context).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Shadowsocks connection will be added in a future update.')),
+                          );
+                          return;
+                        }
+
+                        if (s.protocol == VpnProtocol.wireguard) {
+                          Navigator.of(context).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('WireGuard connection will be added in a future update.')),
+                          );
+                          return;
+                        }
                       },
                     ),
                   ));

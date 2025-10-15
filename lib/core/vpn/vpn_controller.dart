@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:openvpn_flutter/openvpn_flutter.dart';
+// TODO: Add WireGuard/Shadowsocks plugins when finalized.
 import 'session_manager.dart';
 
 enum VpnState { disconnected, connecting, connected, reconnecting, failed }
