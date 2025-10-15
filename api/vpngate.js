@@ -1,6 +1,10 @@
 // Vercel API endpoint for VPN servers
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export default function handler(req, res) {
   try {
@@ -20,7 +24,7 @@ export default function handler(req, res) {
     }
     
     // Read the CSV file
-    const csvPath = path.join(process.cwd(), 'vpngate.csv');
+    const csvPath = path.join(__dirname, '..', 'vpngate.csv');
     const csvData = fs.readFileSync(csvPath, 'utf8');
     
     // Set headers for CSV response

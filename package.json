@@ -2,10 +2,11 @@
   "name": "vyntra-vpn-api",
   "version": "1.0.0",
   "description": "Vercel API for Vyntra VPN server data",
+  "type": "module",
   "main": "api/vpngate.js",
   "scripts": {},
   "dependencies": {},
   "engines": {
-    "node": ">=18.0.0"
+    "node": "18.x"
   }
 }
