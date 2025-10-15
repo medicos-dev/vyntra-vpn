@@ -1,0 +1,652 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/network/server_scoring.dart';
+import '../../core/network/vpngate_service.dart';
+import '../../core/vpn/reconnect_watchdog.dart';
+import '../../core/vpn/vpn_controller.dart';
+import '../servers/server_list_screen.dart';
+import '../settings/settings_screen.dart';
+
+final vpngateProvider = Provider((ref) => VpnGateService());
+final vpnControllerProvider = Provider((ref) => VpnController());
+
+class HomeScreen extends ConsumerStatefulWidget {
+  final void Function(ThemeMode) onThemeChange;
+  final ThemeMode currentMode;
+  const HomeScreen({
+    super.key, 
+    required this.onThemeChange, 
+    required this.currentMode,
+  });
+
+  @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStateMixin {
+  List servers = [];
+  String? _currentProfile;
+  ReconnectWatchdog? _watchdog;
+  late AnimationController _pulseController;
+  late AnimationController _glowController;
+  late Animation<double> _pulseAnimation;
+  late Animation<double> _glowAnimation;
+  bool _loadingServers = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    );
+    _glowController = AnimationController(
+      duration: const Duration(seconds: 3),
+      vsync: this,
+    );
+    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+    _glowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
+    );
+    _pulseController.repeat(reverse: true);
+    _glowController.repeat(reverse: true);
+    
+    Future.microtask(() async {
+      final ctrl = ref.read(vpnControllerProvider);
+      await ctrl.init();
+      _watchdog = ReconnectWatchdog(
+        controller: ctrl,
+        currentProfileProvider: () async => _currentProfile,
+      );
+      await _watchdog!.start();
+      await _loadServers();
+    });
+  }
+
+  Future<void> _loadServers() async {
+    if (_loadingServers) return;
+    
+    setState(() {
+      _loadingServers = true;
+    });
+    
+    try {
+      final service = ref.read(vpngateProvider);
+      
+      // Start loading servers in background
+      service.fetchServers().then((list) {
+        if (mounted) {
+          setState(() {
+            servers = ServerScoring.sortBest(list).take(20).toList();
+            _loadingServers = false;
+          });
+        }
+      });
+      
+      // Show first 10 servers immediately for better UX
+      final quickList = await service.fetchServersQuick();
+      if (mounted && quickList.isNotEmpty) {
+        setState(() {
+          servers = ServerScoring.sortBest(quickList).take(10).toList();
+          _loadingServers = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _loadingServers = false;
+      });
+    }
+  }
+
+  Future<void> _retryLoadServers() async {
+    setState(() {
+      servers = [];
+      _loadingServers = true;
+    });
+    
+    // Wait a bit before retrying
+    await Future.delayed(const Duration(seconds: 1));
+    await _loadServers();
+  }
+
+  Future<void> _connectBest() async {
+    if (servers.isEmpty) {
+      await _loadServers();
+      if (servers.isEmpty) return;
+    }
+    final service = ref.read(vpngateProvider);
+    final ctrl = ref.read(vpnControllerProvider);
+    final best = servers.first;
+    final profile = service.buildHardenedOvpn(best.ovpnBase64);
+    _currentProfile = profile;
+    await ctrl.connect(profile);
+  }
+
+  Future<void> _disconnect() async {
+    final ctrl = ref.read(vpnControllerProvider);
+    await ctrl.disconnect();
+  }
+
+  @override
+  void dispose() {
+    _watchdog?.dispose();
+    _pulseController.dispose();
+    _glowController.dispose();
+    super.dispose();
+  }
+
+  Widget _buildStatusCard(VpnState state, String? error) {
+    Color statusColor;
+    IconData statusIcon;
+    String statusText;
+    String statusSubtext;
+    
+    switch (state) {
+      case VpnState.connected:
+        statusColor = const Color(0xFF00C851);
+        statusIcon = Icons.security;
+        statusText = 'Connected & Secure';
+        statusSubtext = 'Your connection is protected';
+        break;
+      case VpnState.connecting:
+        statusColor = const Color(0xFFFF8800);
+        statusIcon = Icons.vpn_key;
+        statusText = 'Connecting...';
+        statusSubtext = 'Establishing secure tunnel';
+        break;
+      case VpnState.reconnecting:
+        statusColor = const Color(0xFF2196F3);
+        statusIcon = Icons.refresh;
+        statusText = 'Reconnecting...';
+        statusSubtext = 'Restoring connection';
+        break;
+      case VpnState.failed:
+        statusColor = const Color(0xFFFF4444);
+        statusIcon = Icons.error_outline;
+        statusText = 'Connection Failed';
+        statusSubtext = 'Unable to establish connection';
+        break;
+      default:
+        statusColor = const Color(0xFF757575);
+        statusIcon = Icons.vpn_lock_outlined;
+        statusText = 'Disconnected';
+        statusSubtext = 'Tap to connect securely';
+    }
+
+    return Container(
+      margin: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            statusColor.withValues(alpha: 0.15),
+            statusColor.withValues(alpha: 0.05),
+            Colors.transparent,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: statusColor.withValues(alpha: 0.2),
+            blurRadius: 20,
+            spreadRadius: 0,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              // Glow effect
+              AnimatedBuilder(
+                animation: _glowAnimation,
+                builder: (context, child) {
+                  return Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: statusColor.withValues(alpha: _glowAnimation.value * 0.1),
+                    ),
+                  );
+                },
+              ),
+              // Main icon
+              AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: state == VpnState.connecting || state == VpnState.reconnecting 
+                        ? _pulseAnimation.value : 1.0,
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 2),
+                      ),
+                      child: Icon(
+                        statusIcon,
+                        size: 48,
+                        color: statusColor,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Text(
+            statusText,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: statusColor,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            statusSubtext,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (state == VpnState.connected) ...[
+            const SizedBox(height: 12),
+            StreamBuilder<Duration>(
+              stream: ref.read(vpnControllerProvider).sessionManager.timeRemainingStream,
+              initialData: ref.read(vpnControllerProvider).sessionManager.timeRemaining,
+              builder: (context, snapshot) {
+                final timeRemaining = snapshot.data ?? Duration.zero;
+                final sessionManager = ref.read(vpnControllerProvider).sessionManager;
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00C851).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF00C851).withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.timer_rounded,
+                        size: 16,
+                        color: Color(0xFF00C851),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Session: ${sessionManager.formatDuration(timeRemaining)}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFF00C851),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+          if (error != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+              ),
+              child: Text(
+                error,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.red,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConnectButton(VpnState state) {
+    final isConnected = state == VpnState.connected;
+    final isLoading = state == VpnState.connecting || state == VpnState.reconnecting;
+    
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 32),
+      child: ElevatedButton(
+        onPressed: isLoading ? null : (isConnected ? _disconnect : _connectBest),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isConnected ? const Color(0xFFFF4444) : const Color(0xFF2196F3),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          elevation: 12,
+          shadowColor: (isConnected ? const Color(0xFFFF4444) : const Color(0xFF2196F3)).withValues(alpha: 0.4),
+        ),
+        child: isLoading
+            ? const SizedBox(
+                height: 28,
+                width: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    isConnected ? Icons.stop_rounded : Icons.play_arrow_rounded, 
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    isConnected ? 'Disconnect' : 'Connect Fastest',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildServerInfo() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            spreadRadius: 0,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2196F3).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.dns_rounded,
+              color: Color(0xFF2196F3),
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Server Network',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _loadingServers 
+                      ? 'Loading servers...' 
+                      : servers.isEmpty 
+                          ? 'No servers available - tap refresh to retry'
+                          : '${servers.length} premium servers available',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _loadingServers ? null : (servers.isEmpty ? _retryLoadServers : _loadServers),
+            icon: _loadingServers 
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh_rounded),
+            tooltip: servers.isEmpty ? 'Retry loading servers' : 'Refresh servers',
+            style: IconButton.styleFrom(
+              backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSessionInfo() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF6366F1).withValues(alpha: 0.1),
+            const Color(0xFF8B5CF6).withValues(alpha: 0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.timer_rounded,
+              color: Color(0xFF6366F1),
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Session Duration',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Each session lasts 1 hour for optimal performance',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+          @override
+          Widget build(BuildContext context) {
+            final ctrl = ref.read(vpnControllerProvider);
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                image: const DecorationImage(
+                  image: AssetImage('assets/vyntra logo.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Vyntra',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            child: CircleAvatar(
+              backgroundColor: Theme.of(context).brightness == Brightness.dark 
+                  ? Colors.white.withValues(alpha: 0.15)
+                  : Theme.of(context).primaryColor.withValues(alpha: 0.1),
+              child: IconButton(
+                icon: Icon(
+                  Icons.list_rounded, 
+                  color: Theme.of(context).brightness == Brightness.dark 
+                      ? Colors.white 
+                      : Theme.of(context).primaryColor,
+                ),
+                onPressed: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ServerListScreen(
+                      servers: List.from(servers),
+                      onSelect: (s) async {
+                        final service = ref.read(vpngateProvider);
+                        final ctrl = ref.read(vpnControllerProvider);
+                        final profile = service.buildHardenedOvpn(s.ovpnBase64);
+                        _currentProfile = profile;
+                        await ctrl.connect(profile);
+                      },
+                    ),
+                  ));
+                },
+                tooltip: 'Server List',
+              ),
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            child: CircleAvatar(
+              backgroundColor: Theme.of(context).brightness == Brightness.dark 
+                  ? Colors.white.withValues(alpha: 0.15)
+                  : Theme.of(context).primaryColor.withValues(alpha: 0.1),
+              child: IconButton(
+                icon: Icon(
+                  Icons.settings_rounded, 
+                  color: Theme.of(context).brightness == Brightness.dark 
+                      ? Colors.white 
+                      : Theme.of(context).primaryColor,
+                ),
+                onPressed: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => SettingsScreen(),
+                  ));
+                },
+                tooltip: 'Settings',
+              ),
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            child: CircleAvatar(
+              backgroundColor: Theme.of(context).brightness == Brightness.dark 
+                  ? Colors.white.withValues(alpha: 0.15)
+                  : Theme.of(context).primaryColor.withValues(alpha: 0.1),
+              child: IconButton(
+                icon: Icon(
+                  widget.currentMode == ThemeMode.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                  color: Theme.of(context).brightness == Brightness.dark 
+                      ? Colors.white 
+                      : Theme.of(context).primaryColor,
+                ),
+                onPressed: () {
+                  // Switch to opposite theme - single click
+                  final newMode = widget.currentMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+                  widget.onThemeChange(newMode);
+                },
+                tooltip: widget.currentMode == ThemeMode.dark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: StreamBuilder<VpnState>(
+          stream: ctrl.state,
+          initialData: ctrl.current,
+          builder: (context, snap) {
+            final state = snap.data ?? VpnState.disconnected;
+            final error = ctrl.lastError.isNotEmpty ? ctrl.lastError : null;
+            
+            return Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        _buildStatusCard(state, error),
+                        const SizedBox(height: 24),
+                        _buildServerInfo(),
+                        const SizedBox(height: 16),
+                        _buildSessionInfo(),
+                        const SizedBox(height: 32),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: _buildConnectButton(state),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}

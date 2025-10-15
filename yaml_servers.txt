@@ -1,0 +1,1568 @@
+﻿  - hostname: "public-vpn-45"
+    ip: "219.100.37.9"
+    country: "Japan"
+    country_code: "JP"
+    score: 2867281
+    ping: 15
+    speed: 424761932
+    sessions: 125
+    uptime: 5652022450
+    total_users: 12641771
+    total_traffic: 788403936365612
+    log_type: "2weeks"
+    operator: "Daiyuu Nobori_ Japan. Academic Use Only."
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "public-vpn-131"
+    ip: "219.100.37.64"
+    country: "Japan"
+    country_code: "JP"
+    score: 2802985
+    ping: 11
+    speed: 283582518
+    sessions: 117
+    uptime: 5652042799
+    total_users: 9523101
+    total_traffic: 431699750665188
+    log_type: "2weeks"
+    operator: "Daiyuu Nobori_ Japan. Academic Use Only."
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "public-vpn-79"
+    ip: "219.100.37.27"
+    country: "Japan"
+    country_code: "JP"
+    score: 2731783
+    ping: 9
+    speed: 464176171
+    sessions: 75
+    uptime: 5652023486
+    total_users: 10390803
+    total_traffic: 566530208120917
+    log_type: "2weeks"
+    operator: "Daiyuu Nobori_ Japan. Academic Use Only."
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "public-vpn-98"
+    ip: "219.100.37.31"
+    country: "Japan"
+    country_code: "JP"
+    score: 2729790
+    ping: 14
+    speed: 437723104
+    sessions: 146
+    uptime: 5652011525
+    total_users: 15093035
+    total_traffic: 733285942242036
+    log_type: "2weeks"
+    operator: "Daiyuu Nobori_ Japan. Academic Use Only."
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "public-vpn-90"
+    ip: "219.100.37.55"
+    country: "Japan"
+    country_code: "JP"
+    score: 2710460
+    ping: 11
+    speed: 446671051
+    sessions: 294
+    uptime: 5652031997
+    total_users: 27071351
+    total_traffic: 1566086280935970
+    log_type: "2weeks"
+    operator: "Daiyuu Nobori_ Japan. Academic Use Only."
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "public-vpn-232"
+    ip: "219.100.37.219"
+    country: "Japan"
+    country_code: "JP"
+    score: 2682175
+    ping: 9
+    speed: 348789137
+    sessions: 127
+    uptime: 5652031671
+    total_users: 22888444
+    total_traffic: 1300795216340565
+    log_type: "2weeks"
+    operator: "Daiyuu Nobori_ Japan. Academic Use Only."
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "public-vpn-222"
+    ip: "219.100.37.184"
+    country: "Japan"
+    country_code: "JP"
+    score: 2638216
+    ping: 17
+    speed: 463345711
+    sessions: 76
+    uptime: 5652044115
+    total_users: 10769540
+    total_traffic: 512092608419260
+    log_type: "2weeks"
+    operator: "Daiyuu Nobori_ Japan. Academic Use Only."
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "public-vpn-41"
+    ip: "219.100.37.5"
+    country: "Japan"
+    country_code: "JP"
+    score: 2596252
+    ping: 25
+    speed: 447165717
+    sessions: 116
+    uptime: 5652018356
+    total_users: 12726257
+    total_traffic: 744071905828168
+    log_type: "2weeks"
+    operator: "Daiyuu Nobori_ Japan. Academic Use Only."
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "public-vpn-84"
+    ip: "219.100.37.29"
+    country: "Japan"
+    country_code: "JP"
+    score: 2539258
+    ping: 11
+    speed: 357813973
+    sessions: 104
+    uptime: 5652012161
+    total_users: 10755728
+    total_traffic: 604721479986521
+    log_type: "2weeks"
+    operator: "Daiyuu Nobori_ Japan. Academic Use Only."
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "public-vpn-121"
+    ip: "219.100.37.88"
+    country: "Japan"
+    country_code: "JP"
+    score: 2508321
+    ping: 12
+    speed: 989849525
+    sessions: 106
+    uptime: 5652062298
+    total_users: 11046959
+    total_traffic: 645345761908488
+    log_type: "2weeks"
+    operator: "Daiyuu Nobori_ Japan. Academic Use Only."
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "public-vpn-201"
+    ip: "219.100.37.212"
+    country: "Japan"
+    country_code: "JP"
+    score: 2123551
+    ping: 10
+    speed: 573538350
+    sessions: 110
+    uptime: 5652057741
+    total_users: 13722775
+    total_traffic: 664321507217276
+    log_type: "2weeks"
+    operator: "Daiyuu Nobori_ Japan. Academic Use Only."
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "public-vpn-165"
+    ip: "219.100.37.127"
+    country: "Japan"
+    country_code: "JP"
+    score: 1946559
+    ping: 18
+    speed: 325356642
+    sessions: 94
+    uptime: 5652033212
+    total_users: 16129931
+    total_traffic: 675344334451931
+    log_type: "2weeks"
+    operator: "Daiyuu Nobori_ Japan. Academic Use Only."
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "public-vpn-133"
+    ip: "219.100.37.91"
+    country: "Japan"
+    country_code: "JP"
+    score: 1881822
+    ping: 24
+    speed: 464788672
+    sessions: 93
+    uptime: 5652026606
+    total_users: 11872993
+    total_traffic: 589049579083890
+    log_type: "2weeks"
+    operator: "Daiyuu Nobori_ Japan. Academic Use Only."
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn905402573"
+    ip: "47.149.157.124"
+    country: "United States"
+    country_code: "US"
+    score: 1881028
+    ping: 2
+    speed: 198884052
+    sessions: 47
+    uptime: 0
+    total_users: 221328
+    total_traffic: 13507465022508
+    log_type: "2weeks"
+    operator: "DESKTOP-46JN3JA's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn711674780"
+    ip: "124.32.30.55"
+    country: "Japan"
+    country_code: "JP"
+    score: 1524874
+    ping: 9
+    speed: 337193238
+    sessions: 78
+    uptime: 576282596
+    total_users: 197590
+    total_traffic: 25707532346193
+    log_type: "2weeks"
+    operator: "jijji's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn631334797"
+    ip: "58.136.201.231"
+    country: "Thailand"
+    country_code: "TH"
+    score: 1498845
+    ping: 3
+    speed: 334416544
+    sessions: 98
+    uptime: 1004774596
+    total_users: 121686
+    total_traffic: 49815858103424
+    log_type: "2weeks"
+    operator: "DESKTOP-Q6LBU42's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn248771747"
+    ip: "153.167.57.181"
+    country: "Japan"
+    country_code: "JP"
+    score: 1489195
+    ping: 6
+    speed: 91648955
+    sessions: 89
+    uptime: 3678057596
+    total_users: 311524
+    total_traffic: 19219780975007
+    log_type: "2weeks"
+    operator: "DESKTOP-OC4LNDJ's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn145886454"
+    ip: "138.64.214.195"
+    country: "Japan"
+    country_code: "JP"
+    score: 1485857
+    ping: 5
+    speed: 538759571
+    sessions: 46
+    uptime: 2466024596
+    total_users: 1892034
+    total_traffic: 438880449953694
+    log_type: "2weeks"
+    operator: "DESKTOP-CEDP796's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn779042938"
+    ip: "211.34.80.37"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 1424366
+    ping: 31
+    speed: 179326065
+    sessions: 82
+    uptime: 2466024596
+    total_users: 68875
+    total_traffic: 26938256039839
+    log_type: "2weeks"
+    operator: "DESKTOP-9A364E8's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "n26"
+    ip: "103.152.178.62"
+    country: "Japan"
+    country_code: "JP"
+    score: 1419562
+    ping: 12
+    speed: 28440206
+    sessions: 144
+    uptime: 1873701596
+    total_users: 430530
+    total_traffic: 66919418142004
+    log_type: "2weeks"
+    operator: "DNCServers"
+    message: "I â™¡ vpngate We recommend connectiong using "east.vpngate.dnc.ne.jp""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn766237289"
+    ip: "113.52.211.252"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 1348100
+    ping: 43
+    speed: 361346726
+    sessions: 90
+    uptime: 5755947596
+    total_users: 165782
+    total_traffic: 27838275497854
+    log_type: "2weeks"
+    operator: "JJ-201026-01's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn815011487"
+    ip: "5.8.206.213"
+    country: "Russian Federation"
+    country_code: "RU"
+    score: 1344643
+    ping: 109
+    speed: 91564465
+    sessions: 5
+    uptime: 1586350596
+    total_users: 39969
+    total_traffic: 5148572376071
+    log_type: "2weeks"
+    operator: "DESKTOP-3950ID7's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "public-vpn-148"
+    ip: "219.100.37.107"
+    country: "Japan"
+    country_code: "JP"
+    score: 1302835
+    ping: 10
+    speed: 388627117
+    sessions: 70
+    uptime: 5652034283
+    total_users: 7183516
+    total_traffic: 359331702479260
+    log_type: "2weeks"
+    operator: "Daiyuu Nobori_ Japan. Academic Use Only."
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn611975118"
+    ip: "193.232.163.5"
+    country: "Russian Federation"
+    country_code: "RU"
+    score: 1242702
+    ping: 125
+    speed: 56753616
+    sessions: 6
+    uptime: 1255545596
+    total_users: 186594
+    total_traffic: 9709513799185
+    log_type: "2weeks"
+    operator: "DESKTOP-S3B3IUP's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn253973526"
+    ip: "153.136.17.43"
+    country: "Japan"
+    country_code: "JP"
+    score: 1077426
+    ping: 65
+    speed: 7135413
+    sessions: 37
+    uptime: 1353795596
+    total_users: 450996
+    total_traffic: 37050784421760
+    log_type: "2weeks"
+    operator: "LAPTOP-IGNNPNRF's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn976850070"
+    ip: "220.122.51.250"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 993949
+    ping: 23
+    speed: 374531729
+    sessions: 59
+    uptime: 241499596
+    total_users: 285931
+    total_traffic: 46460104803764
+    log_type: "2weeks"
+    operator: "DESKTOP-AECV27R's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn321767802"
+    ip: "92.202.199.250"
+    country: "Japan"
+    country_code: "JP"
+    score: 951260
+    ping: 1
+    speed: 419925630
+    sessions: 68
+    uptime: 207556596
+    total_users: 33771
+    total_traffic: 10442953224453
+    log_type: "2weeks"
+    operator: "KEISUKE-PC's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn564292167"
+    ip: "111.106.170.218"
+    country: "Japan"
+    country_code: "JP"
+    score: 885621
+    ping: 12
+    speed: 79668225
+    sessions: 28
+    uptime: 207556596
+    total_users: 421335
+    total_traffic: 38273197996041
+    log_type: "2weeks"
+    operator: "OZ-2024's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn256989918"
+    ip: "46.0.10.192"
+    country: "Russian Federation"
+    country_code: "RU"
+    score: 865380
+    ping: 31
+    speed: 43154852
+    sessions: 12
+    uptime: 241499596
+    total_users: 8964
+    total_traffic: 1514036210771
+    log_type: "2weeks"
+    operator: "DESKTOP-PA31G67's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "2i6"
+    ip: "1.66.34.120"
+    country: "Japan"
+    country_code: "JP"
+    score: 858612
+    ping: 28
+    speed: 69615336
+    sessions: 145
+    uptime: 230857596
+    total_users: 3600594
+    total_traffic: 416572466999283
+    log_type: "2weeks"
+    operator: "DNC"
+    message: "I â™¡ vpngate We recommend connectiong using "vpngate.dnc.ne.jp""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn789888978"
+    ip: "124.18.48.123"
+    country: "Japan"
+    country_code: "JP"
+    score: 858508
+    ping: 10
+    speed: 890477460
+    sessions: 6
+    uptime: 155156596
+    total_users: 288640
+    total_traffic: 39270309528755
+    log_type: "2weeks"
+    operator: "SD's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn238800317"
+    ip: "115.37.101.45"
+    country: "Japan"
+    country_code: "JP"
+    score: 848744
+    ping: 10
+    speed: 481589140
+    sessions: 65
+    uptime: 155156596
+    total_users: 369890
+    total_traffic: 125421577779164
+    log_type: "2weeks"
+    operator: "DESKTOP-GI58MG4's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn129404153"
+    ip: "113.192.121.34"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 842835
+    ping: 43
+    speed: 88979764
+    sessions: 31
+    uptime: 207556596
+    total_users: 1805
+    total_traffic: 99918913659
+    log_type: "2weeks"
+    operator: "DESKTOP-9EK435K's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn604665500"
+    ip: "59.20.187.249"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 821065
+    ping: 27
+    speed: 187026404
+    sessions: 29
+    uptime: 155156596
+    total_users: 28740
+    total_traffic: 4489487395319
+    log_type: "2weeks"
+    operator: "DESKTOP-M7A3J5H's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn379354462"
+    ip: "117.55.147.213"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 812736
+    ping: 45
+    speed: 88223976
+    sessions: 26
+    uptime: 195237596
+    total_users: 735985
+    total_traffic: 39305941835940
+    log_type: "2weeks"
+    operator: "DESKTOP-S60524V's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn614029072"
+    ip: "126.108.76.154"
+    country: "Japan"
+    country_code: "JP"
+    score: 798163
+    ping: 2
+    speed: 307115830
+    sessions: 46
+    uptime: 132833596
+    total_users: 328992
+    total_traffic: 43379111016473
+    log_type: "2weeks"
+    operator: "DESKTOP-VV8SE06's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn189627904"
+    ip: "222.0.137.91"
+    country: "Japan"
+    country_code: "JP"
+    score: 780735
+    ping: 2
+    speed: 3074195710
+    sessions: 82
+    uptime: 56552596
+    total_users: 621815
+    total_traffic: 294320418284714
+    log_type: "2weeks"
+    operator: "å±±ç”°å•†åº—'s owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn175363374"
+    ip: "121.184.38.47"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 766578
+    ping: 28
+    speed: 208319300
+    sessions: 13
+    uptime: 155156596
+    total_users: 9356
+    total_traffic: 1866724819576
+    log_type: "2weeks"
+    operator: "DESKTOP-1QTUL5D's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn232176021"
+    ip: "42.115.197.137"
+    country: "Viet Nam"
+    country_code: "VN"
+    score: 751292
+    ping: 29
+    speed: 388296108
+    sessions: 14
+    uptime: 132833596
+    total_users: 26415
+    total_traffic: 4946227337175
+    log_type: "2weeks"
+    operator: "DESKTOP-5TICOK0's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn701662588"
+    ip: "121.157.114.43"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 745331
+    ping: 29
+    speed: 607807904
+    sessions: 31
+    uptime: 144286596
+    total_users: 108983
+    total_traffic: 19714617044844
+    log_type: "2weeks"
+    operator: "DESKTOP-R20SGAE's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn339628984"
+    ip: "121.132.125.79"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 741422
+    ping: 31
+    speed: 74142270
+    sessions: 25
+    uptime: 144286596
+    total_users: 22404
+    total_traffic: 4990385899975
+    log_type: "2weeks"
+    operator: "DESKTOP-3HKJ7GA's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn886841989"
+    ip: "184.22.101.224"
+    country: "Thailand"
+    country_code: "TH"
+    score: 725450
+    ping: 5
+    speed: 669371792
+    sessions: 41
+    uptime: 56552596
+    total_users: 48644
+    total_traffic: 12078489234695
+    log_type: "2weeks"
+    operator: "NB_Kane_PC's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn605829850"
+    ip: "221.145.88.114"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 724545
+    ping: 38
+    speed: 39303608
+    sessions: 19
+    uptime: 155156596
+    total_users: 428767
+    total_traffic: 33763264472051
+    log_type: "2weeks"
+    operator: "DESKTOP-78DV9R0's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn212140070"
+    ip: "175.114.235.135"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 715972
+    ping: 31
+    speed: 87819435
+    sessions: 12
+    uptime: 132833596
+    total_users: 244154
+    total_traffic: 26846402348871
+    log_type: "2weeks"
+    operator: "SKI16D20078's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn877296508"
+    ip: "123.1.49.109"
+    country: "Japan"
+    country_code: "JP"
+    score: 712058
+    ping: 8
+    speed: 947419312
+    sessions: 35
+    uptime: 56552596
+    total_users: 67210
+    total_traffic: 35742538691921
+    log_type: "2weeks"
+    operator: "DESKTOP-TCLN1RM's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn101028669"
+    ip: "125.30.68.199"
+    country: "Japan"
+    country_code: "JP"
+    score: 680459
+    ping: 13
+    speed: 178400127
+    sessions: 4
+    uptime: 56552596
+    total_users: 254934
+    total_traffic: 35444037284340
+    log_type: "2weeks"
+    operator: "k-HP's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn722003525"
+    ip: "175.28.138.123"
+    country: "Japan"
+    country_code: "JP"
+    score: 679688
+    ping: 20
+    speed: 96509779
+    sessions: 9
+    uptime: 44857596
+    total_users: 4620
+    total_traffic: 344739860459
+    log_type: "2weeks"
+    operator: "DESKTOP-IQGJIC3's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn407668762"
+    ip: "67.198.78.203"
+    country: "United States"
+    country_code: "US"
+    score: 678055
+    ping: 22
+    speed: 0
+    sessions: 4
+    uptime: 0
+    total_users: 2
+    total_traffic: 55722496
+    log_type: "2weeks"
+    operator: "DESKTOP-B8S399C's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn871332371"
+    ip: "116.220.199.154"
+    country: "Japan"
+    country_code: "JP"
+    score: 661041
+    ping: 16
+    speed: 269665940
+    sessions: 9
+    uptime: 44857596
+    total_users: 114958
+    total_traffic: 5120113003228
+    log_type: "2weeks"
+    operator: "DESKTOP-FAJ5F0E's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn485308292"
+    ip: "221.71.233.87"
+    country: "Japan"
+    country_code: "JP"
+    score: 658803
+    ping: 10
+    speed: 702023708
+    sessions: 24
+    uptime: 31809596
+    total_users: 202097
+    total_traffic: 31629264996949
+    log_type: "2weeks"
+    operator: "DESKTOP-RG47KA0's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn857650109"
+    ip: "14.132.55.42"
+    country: "Japan"
+    country_code: "JP"
+    score: 646292
+    ping: 7
+    speed: 595747558
+    sessions: 17
+    uptime: 0
+    total_users: 261094
+    total_traffic: 30818643332515
+    log_type: "2weeks"
+    operator: ""
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn851027975"
+    ip: "182.169.135.203"
+    country: "Japan"
+    country_code: "JP"
+    score: 641558
+    ping: 10
+    speed: 951004244
+    sessions: 45
+    uptime: 0
+    total_users: 33140
+    total_traffic: 12926484464882
+    log_type: "2weeks"
+    operator: "DESKTOP-K18JR27's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn452883129"
+    ip: "217.178.198.70"
+    country: "Japan"
+    country_code: "JP"
+    score: 640912
+    ping: 4
+    speed: 394201836
+    sessions: 36
+    uptime: 31809596
+    total_users: 21548
+    total_traffic: 3816319356049
+    log_type: "2weeks"
+    operator: "Quartz's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn539990508"
+    ip: "220.144.138.106"
+    country: "Japan"
+    country_code: "JP"
+    score: 638913
+    ping: 2
+    speed: 562449472
+    sessions: 8
+    uptime: 0
+    total_users: 204050
+    total_traffic: 50740933460081
+    log_type: "2weeks"
+    operator: "DESKTOP-S0ITV49's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn462338595"
+    ip: "223.204.248.172"
+    country: "Thailand"
+    country_code: "TH"
+    score: 632159
+    ping: 7
+    speed: 463894062
+    sessions: 31
+    uptime: 0
+    total_users: 59236
+    total_traffic: 19397833179375
+    log_type: "2weeks"
+    operator: "DESKTOP-MR8SPCM's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn415399149"
+    ip: "121.164.218.251"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 631445
+    ping: 32
+    speed: 173913953
+    sessions: 12
+    uptime: 44857596
+    total_users: 9051
+    total_traffic: 1090417533262
+    log_type: "2weeks"
+    operator: "LAPTOP-730574UL's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn223632176"
+    ip: "201.162.65.39"
+    country: "Brazil"
+    country_code: "BR"
+    score: 626696
+    ping: 12
+    speed: 45376236
+    sessions: 0
+    uptime: 0
+    total_users: 0
+    total_traffic: 0
+    log_type: "2weeks"
+    operator: "DESKTOP-M4HFEPQ's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn862424028"
+    ip: "42.114.226.154"
+    country: "Viet Nam"
+    country_code: "VN"
+    score: 613514
+    ping: 21
+    speed: 91202244
+    sessions: 0
+    uptime: 0
+    total_users: 311925
+    total_traffic: 32933875258085
+    log_type: "2weeks"
+    operator: "mayin's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn231523813"
+    ip: "14.39.244.113"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 611811
+    ping: 30
+    speed: 91047241
+    sessions: 40
+    uptime: 31809596
+    total_users: 23347
+    total_traffic: 1977135634684
+    log_type: "2weeks"
+    operator: "DESKTOP-E8DHBN2's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn613758719"
+    ip: "222.96.64.50"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 611308
+    ping: 21
+    speed: 438989918
+    sessions: 39
+    uptime: 0
+    total_users: 10327
+    total_traffic: 4119433812164
+    log_type: "permenent"
+    operator: "DESKTOP-4B5TOMP's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn571931610"
+    ip: "60.83.88.123"
+    country: "Japan"
+    country_code: "JP"
+    score: 599894
+    ping: 6
+    speed: 372781113
+    sessions: 9
+    uptime: 0
+    total_users: 61515
+    total_traffic: 9795143599083
+    log_type: "2weeks"
+    operator: "DESKTOP-FVNR12P's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn410545694"
+    ip: "61.79.207.233"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 594852
+    ping: 32
+    speed: 427435070
+    sessions: 27
+    uptime: 31809596
+    total_users: 349809
+    total_traffic: 33715639700810
+    log_type: "2weeks"
+    operator: "DESKTOP-OVSAUBH's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn725860459"
+    ip: "60.102.116.209"
+    country: "Japan"
+    country_code: "JP"
+    score: 594168
+    ping: 11
+    speed: 97062099
+    sessions: 4
+    uptime: 0
+    total_users: 257929
+    total_traffic: 26493983557376
+    log_type: "2weeks"
+    operator: "SHU-PC-2023-11's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn882867059"
+    ip: "58.3.132.161"
+    country: "Japan"
+    country_code: "JP"
+    score: 587999
+    ping: 18
+    speed: 66264934
+    sessions: 10
+    uptime: 0
+    total_users: 85644
+    total_traffic: 5662738852173
+    log_type: "2weeks"
+    operator: "GLM-15-240-JP's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn875290329"
+    ip: "211.192.181.87"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 582541
+    ping: 36
+    speed: 37947064
+    sessions: 12
+    uptime: 31809596
+    total_users: 63742
+    total_traffic: 3850350226565
+    log_type: "2weeks"
+    operator: "RIN_HS's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn227562455"
+    ip: "133.32.182.93"
+    country: "Japan"
+    country_code: "JP"
+    score: 578541
+    ping: 11
+    speed: 329989142
+    sessions: 8
+    uptime: 0
+    total_users: 90
+    total_traffic: 6158312397
+    log_type: "2weeks"
+    operator: "aaa's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn908026434"
+    ip: "46.53.245.194"
+    country: "Belarus"
+    country_code: "BY"
+    score: 576997
+    ping: 8
+    speed: 29216161
+    sessions: 0
+    uptime: 0
+    total_users: 153
+    total_traffic: 10080501814
+    log_type: "2weeks"
+    operator: "DESKTOP-R9PMVAL's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn282331197"
+    ip: "218.50.9.68"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 570867
+    ping: 33
+    speed: 99471179
+    sessions: 7
+    uptime: 31809596
+    total_users: 591
+    total_traffic: 46159244823
+    log_type: "2weeks"
+    operator: "DESKTOP-LF7M8MI's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn539525867"
+    ip: "220.82.67.63"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 559253
+    ping: 29
+    speed: 458111796
+    sessions: 15
+    uptime: 0
+    total_users: 6667
+    total_traffic: 912318874428
+    log_type: "2weeks"
+    operator: "DESKTOP-O3FI7GJ's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn661074243"
+    ip: "211.185.91.73"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 559186
+    ping: 29
+    speed: 274666289
+    sessions: 3
+    uptime: 0
+    total_users: 195256
+    total_traffic: 15314108841625
+    log_type: "2weeks"
+    operator: "DESKTOP-89VQU3I's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn120536011"
+    ip: "153.182.13.113"
+    country: "Japan"
+    country_code: "JP"
+    score: 557820
+    ping: 37
+    speed: 94760596
+    sessions: 21
+    uptime: 0
+    total_users: 161861
+    total_traffic: 15528395773294
+    log_type: "2weeks"
+    operator: "DESKTOP-1ATTFDE's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn329354508"
+    ip: "58.233.129.116"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 556064
+    ping: 32
+    speed: 96558045
+    sessions: 0
+    uptime: 0
+    total_users: 5058
+    total_traffic: 442616872786
+    log_type: "2weeks"
+    operator: "DESKTOP-MHIJ14T's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn592653841"
+    ip: "211.248.46.56"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 553003
+    ping: 29
+    speed: 81535729
+    sessions: 5
+    uptime: 0
+    total_users: 1196
+    total_traffic: 68431454981
+    log_type: "2weeks"
+    operator: "DESKTOP-3OC00OE's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn486662942"
+    ip: "153.232.245.135"
+    country: "Japan"
+    country_code: "JP"
+    score: 539939
+    ping: 40
+    speed: 317375228
+    sessions: 10
+    uptime: 0
+    total_users: 358733
+    total_traffic: 34599276712519
+    log_type: "2weeks"
+    operator: "ThinkPadMain's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn600707398"
+    ip: "220.122.89.204"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 538579
+    ping: 27
+    speed: 201546270
+    sessions: 3
+    uptime: 0
+    total_users: 89587
+    total_traffic: 9335715411238
+    log_type: "2weeks"
+    operator: "DESKTOP-ROD409L's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn914075597"
+    ip: "120.50.80.224"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 538166
+    ping: 32
+    speed: 55883448
+    sessions: 3
+    uptime: 0
+    total_users: 17030
+    total_traffic: 939559157651
+    log_type: "2weeks"
+    operator: "DESKTOP-O89HJUL's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn629209184"
+    ip: "176.208.32.89"
+    country: "Russian Federation"
+    country_code: "RU"
+    score: 530946
+    ping: 54
+    speed: 206472201
+    sessions: 9
+    uptime: 56552596
+    total_users: 4339
+    total_traffic: 1895955366757
+    log_type: "2weeks"
+    operator: "DESKTOP-M30GCP1's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn182152866"
+    ip: "181.94.224.201"
+    country: "Paraguay"
+    country_code: "PY"
+    score: 502054
+    ping: 32
+    speed: 109403169
+    sessions: 0
+    uptime: 0
+    total_users: 12712
+    total_traffic: 1614663978107
+    log_type: "2weeks"
+    operator: "Kusanagi's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn25252525"
+    ip: "128.27.29.249"
+    country: "Japan"
+    country_code: "JP"
+    score: 498780
+    ping: 18
+    speed: 4496538
+    sessions: 13
+    uptime: 120223596
+    total_users: 11585
+    total_traffic: 284039798284
+    log_type: "2weeks"
+    operator: "Mona-PC's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn142731063"
+    ip: "79.105.127.147"
+    country: "Russian Federation"
+    country_code: "RU"
+    score: 498043
+    ping: 107
+    speed: 92828898
+    sessions: 2
+    uptime: 44857596
+    total_users: 102636
+    total_traffic: 7200981693293
+    log_type: "2weeks"
+    operator: "Main_PC's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn469256716"
+    ip: "210.157.202.26"
+    country: "Japan"
+    country_code: "JP"
+    score: 494978
+    ping: 38
+    speed: 63772565
+    sessions: 0
+    uptime: 0
+    total_users: 0
+    total_traffic: 0
+    log_type: "2weeks"
+    operator: "dell's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn975936650"
+    ip: "192.183.209.27"
+    country: "United States"
+    country_code: "US"
+    score: 494786
+    ping: 11
+    speed: 414002970
+    sessions: 0
+    uptime: 0
+    total_users: 17653
+    total_traffic: 745691467100
+    log_type: "2weeks"
+    operator: "E113's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn737845298"
+    ip: "95.27.19.95"
+    country: "Russian Federation"
+    country_code: "RU"
+    score: 493304
+    ping: 22
+    speed: 24757916
+    sessions: 1
+    uptime: 0
+    total_users: 586
+    total_traffic: 268928188
+    log_type: "2weeks"
+    operator: "DESKTOP-G6FR63C's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn723053340"
+    ip: "78.157.239.242"
+    country: "Russian Federation"
+    country_code: "RU"
+    score: 484953
+    ping: 138
+    speed: 94500846
+    sessions: 3
+    uptime: 44857596
+    total_users: 12353
+    total_traffic: 867013226258
+    log_type: "2weeks"
+    operator: "DESKTOP-6DRT4OS's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn685719311"
+    ip: "156.47.78.177"
+    country: "United States"
+    country_code: "US"
+    score: 478824
+    ping: 11
+    speed: 47147777
+    sessions: 23
+    uptime: 0
+    total_users: 234007
+    total_traffic: 10102390320302
+    log_type: "2weeks"
+    operator: "MSI's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn645126279"
+    ip: "67.181.246.143"
+    country: "United States"
+    country_code: "US"
+    score: 476197
+    ping: 13
+    speed: 273914719
+    sessions: 8
+    uptime: 0
+    total_users: 3919
+    total_traffic: 210149465111
+    log_type: "2weeks"
+    operator: "pdteggman-PC's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn142859765"
+    ip: "212.124.19.106"
+    country: "Russian Federation"
+    country_code: "RU"
+    score: 465995
+    ping: 50
+    speed: 29324323
+    sessions: 1
+    uptime: 0
+    total_users: 1062
+    total_traffic: 68685929806
+    log_type: "2weeks"
+    operator: "Hermaeus's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn437093965"
+    ip: "134.71.249.227"
+    country: "United States"
+    country_code: "US"
+    score: 461554
+    ping: 4
+    speed: 222612241
+    sessions: 0
+    uptime: 0
+    total_users: 154623
+    total_traffic: 8164817730761
+    log_type: "2weeks"
+    operator: "Steph's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn336940853"
+    ip: "85.15.108.239"
+    country: "Russian Federation"
+    country_code: "RU"
+    score: 458846
+    ping: 118
+    speed: 41639731
+    sessions: 3
+    uptime: 0
+    total_users: 4493
+    total_traffic: 233573748699
+    log_type: "2weeks"
+    operator: "DESKTOP-0HNAGP2's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn348011924"
+    ip: "70.53.24.250"
+    country: "Canada"
+    country_code: "CA"
+    score: 410709
+    ping: -
+    speed: 137705553
+    sessions: 12
+    uptime: 0
+    total_users: 20352
+    total_traffic: 2172625755802
+    log_type: "2weeks"
+    operator: "DESKTOP-JMC5OP1's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn330329633"
+    ip: "85.173.162.149"
+    country: "Russian Federation"
+    country_code: "RU"
+    score: 398910
+    ping: 60
+    speed: 7498279
+    sessions: 6
+    uptime: 144286596
+    total_users: 1589
+    total_traffic: 104193573151
+    log_type: "2weeks"
+    operator: "OK-5's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn930890848"
+    ip: "173.47.131.52"
+    country: "United States"
+    country_code: "US"
+    score: 397144
+    ping: 43
+    speed: 31627425
+    sessions: 6
+    uptime: 0
+    total_users: 1012
+    total_traffic: 13277859434
+    log_type: "2weeks"
+    operator: "LAPTOP-VPKL0PKC's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "aura143"
+    ip: "164.70.84.149"
+    country: "Japan"
+    country_code: "JP"
+    score: 387905
+    ping: 1
+    speed: 99008500
+    sessions: 22
+    uptime: 654877596
+    total_users: 12073
+    total_traffic: 2120622333817
+    log_type: "2weeks"
+    operator: "Korrepetitor of engineer"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn626355605"
+    ip: "209.17.71.156"
+    country: "Japan"
+    country_code: "JP"
+    score: 384630
+    ping: 3
+    speed: 206044480
+    sessions: 24
+    uptime: 1613617596
+    total_users: 5649
+    total_traffic: 749805600661
+    log_type: "2weeks"
+    operator: "DESKTOP-H0GBHIL's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn954939865"
+    ip: "94.245.146.36"
+    country: "Russian Federation"
+    country_code: "RU"
+    score: 379554
+    ping: -
+    speed: 49283438
+    sessions: 1
+    uptime: 0
+    total_users: 3243
+    total_traffic: 44189364038
+    log_type: "2weeks"
+    operator: "DSDemidov_LP's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn612745114"
+    ip: "126.43.219.209"
+    country: "Japan"
+    country_code: "JP"
+    score: 375998
+    ping: 5
+    speed: 159406771
+    sessions: 25
+    uptime: 3488612596
+    total_users: 163221
+    total_traffic: 15822878882390
+    log_type: "2weeks"
+    operator: "HQW-NOTE12700H's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn586732488"
+    ip: "126.71.79.91"
+    country: "Japan"
+    country_code: "JP"
+    score: 373429
+    ping: 7
+    speed: 35067316
+    sessions: 6
+    uptime: 1004774596
+    total_users: 16998
+    total_traffic: 3171255128728
+    log_type: "2weeks"
+    operator: "DESKTOP-KAPG97O's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
+  - hostname: "vpn607155856"
+    ip: "211.197.16.167"
+    country: "Korea Republic of"
+    country_code: "KR"
+    score: 367906
+    ping: 33
+    speed: 907873013
+    sessions: 25
+    uptime: 7653815596
+    total_users: 401225
+    total_traffic: 45832042843925
+    log_type: "2weeks"
+    operator: "DESKTOP-OB9OL9A's owner"
+    message: ""
+    config_base64: "BASE64_CONFIG_HERE"
+
