@@ -75,9 +75,17 @@ class UnifiedVpnService {
           : <String, dynamic>{});
       final List<VpnServer> allServers = <VpnServer>[];
 
-      // Parse VPNGate servers
-      if (services['vpngate'] is Map<String, dynamic>) {
-        final Map<String, dynamic> vpngateData = services['vpngate'] as Map<String, dynamic>;
+      Map<String, dynamic>? _pickService(Map<String, dynamic> src, List<String> keys) {
+        for (final k in keys) {
+          final val = src[k];
+          if (val is Map<String, dynamic>) return val;
+        }
+        return null;
+      }
+
+      // Parse VPNGate servers (support aliases)
+      final Map<String, dynamic>? vpngateData = _pickService(services, const ['vpngate', 'vpnGate', 'VPNGate']);
+      if (vpngateData != null) {
         final List<dynamic> vpngateServers = (vpngateData['allServers'] is List
             ? vpngateData['allServers'] as List
             : <dynamic>[]);
@@ -101,9 +109,9 @@ class UnifiedVpnService {
         }
       }
 
-      // Parse Cloudflare WARP servers
-      if (services['cloudflareWarp'] is Map<String, dynamic>) {
-        final Map<String, dynamic> cloudflareData = services['cloudflareWarp'] as Map<String, dynamic>;
+      // Parse Cloudflare WARP servers (support aliases)
+      final Map<String, dynamic>? cloudflareData = _pickService(services, const ['cloudflareWarp', 'cloudflare_warp', 'CloudflareWARP', 'warp']);
+      if (cloudflareData != null) {
         final List<dynamic> cloudflareServers = (cloudflareData['servers'] is List
             ? cloudflareData['servers'] as List
             : <dynamic>[]);
@@ -133,12 +141,17 @@ class UnifiedVpnService {
         }
       }
 
-      // Parse Outline VPN servers
-      if (services['outlineVpn'] is Map<String, dynamic>) {
-        final Map<String, dynamic> outlineData = services['outlineVpn'] as Map<String, dynamic>;
-        final List<dynamic> outlineServers = (outlineData['servers'] is List
-            ? outlineData['servers'] as List
-            : <dynamic>[]);
+      // Parse Outline VPN servers (support aliases and nested per-country lists)
+      final Map<String, dynamic>? outlineData = _pickService(services, const ['outlineVpn', 'outline_vpn', 'OutlineVPN', 'outline']);
+      if (outlineData != null) {
+        final dynamic serversData = outlineData['servers'];
+        final List<dynamic> outlineServers = serversData is List
+            ? serversData
+            : serversData is Map
+                ? (serversData).values
+                    .expand((v) => v is List ? v : const <dynamic>[])
+                    .toList()
+                : <dynamic>[];
         
         for (final serverJson in outlineServers) {
           try {
