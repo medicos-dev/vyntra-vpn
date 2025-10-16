@@ -10,8 +10,7 @@ class NotificationService {
   static const String _channelId = 'vyntra_vpn_status';
 
   Future<void> init() async {
-    // Use the default launcher icon resource name without the @ prefix
-    const AndroidInitializationSettings android = AndroidInitializationSettings('ic_launcher');
+    const AndroidInitializationSettings android = AndroidInitializationSettings('ic_notification');
     const InitializationSettings init = InitializationSettings(android: android);
     await _plugin.initialize(init,
       onDidReceiveNotificationResponse: (resp) async {

@@ -149,13 +149,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   }
 
   Future<void> _connectBest() async {
-    // New strategy: fetch CSV→JSON, decode Base64, connect
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connection initialised')),
+      );
+    }
+    // Load servers via unified service (the extractor already feeds this path)
     try {
-      final json = await VpnGateCsvService.fetchAsStructuredJson();
-      final vpng = (json['services']?['vpngate']) as Map<String, dynamic>?;
-      final List<dynamic> all = (vpng?['allServers'] as List<dynamic>?) ?? <dynamic>[];
-      if (all.isEmpty) {
-        print('❌ No servers from CSV→JSON loader');
+      final unified = UnifiedVpnService();
+      final List<VpnServer> list = await unified.fetchAllServers();
+      if (list.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('No servers available. Pull to refresh.')),
@@ -165,49 +168,51 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       }
 
       // Rank: lower ping first, then higher speed
-      all.sort((a, b) {
-        final int ap = (a['ping'] ?? 9999) as int;
-        final int bp = (b['ping'] ?? 9999) as int;
-        if (ap != bp) return ap.compareTo(bp);
-        final int aspeed = (a['speed'] ?? 0) as int;
-        final int bspeed = (b['speed'] ?? 0) as int;
-        return bspeed.compareTo(aspeed);
-      });
-
-      print('🎯 Found ${all.length} servers from CSV');
-      _prepareCandidates(all);
-
-      // Pick the first candidate only
-      final ctrl = ref.read(vpnControllerProvider);
-      final s = all.first as Map<String, dynamic>;
-      final b64 = (s['ovpnBase64'] ?? '') as String;
-      final host = (s['hostName'] ?? '') as String;
-      final ctry = (s['country'] ?? '') as String;
-      final ping = (s['ping'] ?? 9999) as int;
-      final speed = (s['speed'] ?? 0) as int;
-      if (b64.isEmpty) {
+      final serversWithConfig = list.where((s) => (s.ovpnBase64 != null && s.ovpnBase64!.isNotEmpty)).toList();
+      if (serversWithConfig.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Selected server has no config. Trying refresh.')),
+            const SnackBar(content: Text('No OpenVPN configs available. Try refresh.')),
           );
         }
         return;
       }
-      print('🎯 Attempt 1/1: $host ($ctry)');
-      print('📊 Server stats: ${(speed / 1e6).toStringAsFixed(1)} Mbps, ${ping}ms');
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Connection initialised')),
-        );
-      }
+      serversWithConfig.sort((a, b) {
+        final int ap = (a.pingMs ?? 9999);
+        final int bp = (b.pingMs ?? 9999);
+        if (ap != bp) return ap.compareTo(bp);
+        final int aspeed = (a.speedBps ?? 0);
+        final int bspeed = (b.speedBps ?? 0);
+        return bspeed.compareTo(aspeed);
+      });
 
-      final ok = await ctrl.connectFromBase64(b64, country: ctry);
+      print('🎯 Found ${serversWithConfig.length} servers from unified');
+      // Candidate queue for watchdog auto-failover
+      final all = serversWithConfig
+          .map((s) => {
+                'hostName': s.hostname,
+                'country': s.country,
+                'ping': s.pingMs ?? 9999,
+                'speed': s.speedBps ?? 0,
+                'ovpnBase64': s.ovpnBase64 ?? '',
+              })
+          .toList();
+      _prepareCandidates(all);
+
+      // Pick the first candidate only
+      final ctrl = ref.read(vpnControllerProvider);
+      final first = serversWithConfig.first;
+      final b64 = first.ovpnBase64!;
+      print('🎯 Attempt 1/1: ${first.hostname} (${first.country})');
+      print('📊 Server stats: ${((first.speedBps ?? 0) / 1e6).toStringAsFixed(1)} Mbps, ${(first.pingMs ?? 9999)}ms');
+
+      final ok = await ctrl.connectFromBase64(b64, country: first.country ?? '');
       if (ok) {
-        print('🚀 Successfully initiated connection to $host');
+        print('🚀 Successfully initiated connection to ${first.hostname}');
         return;
       } else {
-        print('⚠️ Connection attempt failed for $host');
+        print('⚠️ Connection attempt failed for ${first.hostname}');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Connection failed. Try another server.')),
@@ -223,14 +228,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       }
     }
 
-    // Old strategy (commented for comparison):
+    // Old CSV strategy (commented):
     /*
-    if (servers.isEmpty) {
-      await _loadServers();
-      if (servers.isEmpty) return;
-    }
-    final ctrl = ref.read(vpnControllerProvider);
-    // previous selection and connect logic was here
+    try {
+      final json = await VpnGateCsvService.fetchAsStructuredJson();
+      // ... previous CSV-based logic (commented)
+    } catch (_) {}
     */
   }
 

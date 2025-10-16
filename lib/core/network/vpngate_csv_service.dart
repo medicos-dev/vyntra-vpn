@@ -143,9 +143,14 @@ class VpnGateCsvService {
 
     int _col(String name) => idx[name.toLowerCase()] ?? -1;
 
-    // Validate required columns exist
-    final requiredCols = <String>['hostname','ip','countrylong','score','ping','speed','openvpn_configdata_base64'];
+    // Accept common header variations
+    int hostCol = _col('hostname');
+    if (hostCol < 0) hostCol = _col('host name');
+    if (hostCol < 0 && header.isNotEmpty) hostCol = 0; // fallback: first column is often HostName
+
+    final requiredCols = <String>['ip','countrylong','score','ping','speed','openvpn_configdata_base64'];
     final missing = requiredCols.where((c) => _col(c) < 0).toList();
+    if (hostCol < 0) missing.insert(0, 'hostname');
     if (missing.isNotEmpty) {
       throw Exception('CSV missing columns: ${missing.join(', ')}');
     }
@@ -155,16 +160,15 @@ class VpnGateCsvService {
     for (int r = 1; r < csvRows.length; r++) {
       final row = csvRows[r] as List<dynamic>;
       if (row.length < header.length) continue;
-      final int hostI = _col('hostname');
       final int ipI = _col('ip');
       final int countryI = _col('countrylong');
       final int scoreI = _col('score');
       final int pingI = _col('ping');
       final int speedI = _col('speed');
       final int b64I = _col('openvpn_configdata_base64');
-      if ([hostI, ipI, countryI, scoreI, pingI, speedI, b64I].any((i) => i < 0)) continue;
+      if ([hostCol, ipI, countryI, scoreI, pingI, speedI, b64I].any((i) => i < 0)) continue;
 
-      final host = row[hostI]?.toString() ?? '';
+      final host = row[hostCol]?.toString() ?? '';
       final ip = row[ipI]?.toString() ?? '';
       final country = row[countryI]?.toString() ?? '';
       final score = int.tryParse(row[scoreI]?.toString() ?? '') ?? 0;

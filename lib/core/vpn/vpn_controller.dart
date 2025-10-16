@@ -296,10 +296,9 @@ class VpnController {
         return false;
       }
 
-      // Decide auth
-      final requiresAuth = RegExp(r'auth-user-pass', caseSensitive: false).hasMatch(configText);
-      final String username = requiresAuth ? 'vpn' : '';
-      final String password = requiresAuth ? 'vpn' : '';
+      // Always apply auth credentials vpn/vpn for this app flow
+      const String username = 'vpn';
+      const String password = 'vpn';
 
       // Start connection with a simple timeout guard
       final Completer<bool> done = Completer<bool>();
