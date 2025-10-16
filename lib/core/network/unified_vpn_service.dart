@@ -25,6 +25,18 @@ class UnifiedVpnService {
   // Cache duration: 1 hour
   static const Duration _cacheDuration = Duration(hours: 1);
 
+  // Clear cache to force fresh fetch
+  Future<void> clearCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_cacheKey);
+      await prefs.remove(_cacheTimestampKey);
+      print('🔄 Unified VPN cache cleared');
+    } catch (e) {
+      print('⚠️ Failed to clear cache: $e');
+    }
+  }
+
   Future<List<VpnServer>> fetchAllServers() async {
     try {
       // Try to get cached data first
@@ -305,16 +317,6 @@ class UnifiedVpnService {
     );
   }
 
-  // Method to clear cache
-  Future<void> clearCache() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_cacheKey);
-      await prefs.remove(_cacheTimestampKey);
-    } catch (e) {
-      // Ignore errors
-    }
-  }
 
   // Method to force refresh (bypass cache)
   Future<List<VpnServer>> forceRefresh() async {

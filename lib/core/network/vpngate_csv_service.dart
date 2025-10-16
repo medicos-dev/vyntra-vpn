@@ -40,9 +40,15 @@ class VpnGateCsvService {
           // Remove any non-Base64 characters
           cleanBase64 = cleanBase64.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
           
+          // Require minimum length for valid OpenVPN configs
+          if (cleanBase64.length < 500) {
+            print('⚠️ Skipping server due to Base64 too short: ${cleanBase64.length} chars (min 500)');
+            continue;
+          }
+          
           // Check if length is valid for Base64
           if (cleanBase64.length % 4 != 0) {
-            print('⚠️ Skipping server due to invalid Base64 length: ${cleanBase64.length}');
+            print('⚠️ Skipping server due to invalid Base64 length: ${cleanBase64.length} (must be multiple of 4)');
             continue;
           }
           

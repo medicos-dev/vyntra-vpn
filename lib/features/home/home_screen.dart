@@ -81,14 +81,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
-      // Use the new CSV service to fetch servers with decoded OpenVPN configs
-      final csvServers = await VpnGateCsvService.fetchVpnGateServers();
+      // Clear cache to force fresh fetch
+      final vpnService = ref.read(unifiedVpnProvider);
+      await vpnService.clearCache();
+      
+      // Use the unified service to fetch servers
+      final fetchedServers = await vpnService.fetchAllServers();
 
       if (mounted) {
         setState(() {
           // Sort by ping (lowest first)
-          csvServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
-          servers = csvServers;
+          fetchedServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
+          servers = fetchedServers;
           _loadingServers = false;
         });
         print('🏠 Home screen loaded ${servers.length} servers');
@@ -134,16 +138,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   }
 
   Future<void> _connectBest() async {
+    // Force refresh cache to get latest servers
+    print('🔄 Forcing fresh server fetch...');
+    await _loadServers();
+    
     if (servers.isEmpty) {
-      await _loadServers();
-      if (servers.isEmpty) return;
+      print('❌ No servers available after refresh');
+      return;
     }
     
     final ctrl = ref.read(vpnControllerProvider);
     
-    // Filter OpenVPN servers with valid configs
+    // Filter OpenVPN servers with valid configs (minimum 500 chars)
     final List<VpnServer> openvpnServers = servers
-        .where((s) => s.protocol == VpnProtocol.openvpn && s.ovpnConfig != null && s.ovpnConfig!.isNotEmpty)
+        .where((s) => s.protocol == VpnProtocol.openvpn && 
+                     s.ovpnConfig != null && 
+                     s.ovpnConfig!.isNotEmpty &&
+                     s.ovpnBase64 != null &&
+                     s.ovpnBase64!.length >= 500)
         .toList();
     
     if (openvpnServers.isEmpty) {

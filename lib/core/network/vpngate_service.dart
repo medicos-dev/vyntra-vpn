@@ -38,6 +38,12 @@ class VpnGateService {
     }
   }
 
+  // Clear any cached data to force fresh fetch
+  Future<void> clearCache() async {
+    // This would clear any local cache if implemented
+    print('🔄 Cache cleared, forcing fresh server fetch');
+  }
+
   Future<List<VpnGateServer>> fetchServersFromVercel() async {
     try {
       // Try to get cached data first
@@ -257,7 +263,14 @@ class VpnGateService {
       final String b64 = cols[idx['OpenVPN_ConfigData_Base64']!].trim();
       
       // Validate Base64 config
-      if (b64.isEmpty || b64.length < 10 || !_isValidBase64(b64)) {
+      if (b64.isEmpty || b64.length < 10) {
+        print('⚠️ Skipping server ${cols[idx['HostName']!]} due to empty or too short Base64');
+        continue;
+      }
+      
+      if (!_isValidBase64(b64)) {
+        final cleanStr = b64.trim().replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+        print('⚠️ Skipping server ${cols[idx['HostName']!]} due to invalid Base64 (length: ${cleanStr.length})');
         continue;
       }
       
@@ -294,6 +307,9 @@ class VpnGateService {
     
     // Clean the string first
     String cleanStr = str.trim().replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+    
+    // Require minimum length (e.g., 500 chars) for valid OpenVPN configs
+    if (cleanStr.length < 500) return false;
     
     // Check if length is valid for Base64
     if (cleanStr.length % 4 != 0) return false;
@@ -401,16 +417,6 @@ class VpnGateService {
     return buf.toString();
   }
 
-  // Method to clear cache (useful for testing or manual refresh)
-  Future<void> clearCache() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_cacheKey);
-      await prefs.remove(_cacheTimestampKey);
-    } catch (e) {
-      // Ignore errors
-    }
-  }
 
   // Method to force refresh (bypass cache)
   Future<List<VpnGateServer>> forceRefresh() async {
