@@ -253,6 +253,9 @@ class VpnController {
     
     // Honor the protocol specified in the config (no conversion or injection)
     
+    // Normalize auth-user-pass: remove file argument so provided credentials are used
+    optimized = optimized.replaceAll(RegExp(r'^\s*auth-user-pass\s+\S+.*$', multiLine: true), 'auth-user-pass');
+    
     // Ensure we have a dev directive
     if (!optimized.contains('dev ')) {
       optimized += '\ndev tun\n';
@@ -305,8 +308,19 @@ class VpnController {
     if (!RegExp(r'^\s*remote-cert-tls\s+server', multiLine: true).hasMatch(optimized)) {
       optimized += '\nremote-cert-tls server\n';
     }
+    if (!RegExp(r'^\s*tls-client\b', multiLine: true).hasMatch(optimized)) {
+      optimized += '\ntls-client\n';
+    }
     if (!RegExp(r'^\s*auth-nocache\b', multiLine: true).hasMatch(optimized)) {
       optimized += '\nauth-nocache\n';
+    }
+    
+    // Cipher compatibility (OpenVPN 2.5+ prefers data-ciphers)
+    if (!RegExp(r'^\s*data-ciphers\b', multiLine: true).hasMatch(optimized)) {
+      optimized += '\ndata-ciphers AES-256-GCM:AES-128-GCM:AES-256-CBC\n';
+    }
+    if (!RegExp(r'^\s*ncp-ciphers\b', multiLine: true).hasMatch(optimized)) {
+      optimized += '\nncp-ciphers AES-256-GCM:AES-128-GCM:AES-256-CBC\n';
     }
     
     // Increase verbosity for better diagnostics during bring-up
