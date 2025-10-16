@@ -140,29 +140,55 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     }
     
     final ctrl = ref.read(vpnControllerProvider);
-    // Prefer the fastest OpenVPN server using highest speed first, then lowest ping
+    
+    // Filter OpenVPN servers with valid configs
     final List<VpnServer> openvpnServers = servers
-        .where((s) => s.protocol == VpnProtocol.openvpn)
+        .where((s) => s.protocol == VpnProtocol.openvpn && s.ovpnConfig != null && s.ovpnConfig!.isNotEmpty)
         .toList();
+    
+    if (openvpnServers.isEmpty) {
+      print('❌ No OpenVPN servers with valid configs found');
+      return;
+    }
+    
+    // Smart server selection: prioritize low ping, then high speed
+    // Also prefer TCP configs over UDP for better reliability
     openvpnServers.sort((a, b) {
-      final int aspeed = a.speedBps ?? 0;
-      final int bspeed = b.speedBps ?? 0;
-      if (bspeed != aspeed) return bspeed.compareTo(aspeed); // higher speed first
-      return (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999); // then lower ping
+      // First priority: prefer TCP over UDP
+      final aIsTcp = a.ovpnConfig!.contains('proto tcp');
+      final bIsTcp = b.ovpnConfig!.contains('proto tcp');
+      if (aIsTcp != bIsTcp) return aIsTcp ? -1 : 1;
+      
+      // Second priority: lower ping (more important than speed)
+      final aPing = a.pingMs ?? 9999;
+      final bPing = b.pingMs ?? 9999;
+      if (aPing != bPing) return aPing.compareTo(bPing);
+      
+      // Third priority: higher speed
+      final aSpeed = a.speedBps ?? 0;
+      final bSpeed = b.speedBps ?? 0;
+      return bSpeed.compareTo(aSpeed);
     });
-    if (openvpnServers.isEmpty) return;
+    
+    print('🎯 Found ${openvpnServers.length} valid OpenVPN servers');
+    print('🏆 Top 3 candidates:');
+    for (int i = 0; i < 3 && i < openvpnServers.length; i++) {
+      final server = openvpnServers[i];
+      final protocol = server.ovpnConfig!.contains('proto tcp') ? 'TCP' : 'UDP';
+      print('  ${i + 1}. ${server.hostname} (${server.country}) - ${server.pingMs}ms, ${server.speedMbps.toStringAsFixed(1)} Mbps, $protocol');
+    }
 
-    for (final candidate in openvpnServers) {
+    // Try up to 3 best servers
+    final maxAttempts = 3;
+    for (int i = 0; i < maxAttempts && i < openvpnServers.length; i++) {
+      final candidate = openvpnServers[i];
       try {
-        print('🎯 Trying to connect to: ${candidate.hostname} (${candidate.country})');
-        print('📊 Server stats: ${candidate.speedMbps.toStringAsFixed(1)} Mbps, ${candidate.pingMs}ms ping');
+        final protocol = candidate.ovpnConfig!.contains('proto tcp') ? 'TCP' : 'UDP';
+        print('🎯 Attempt ${i + 1}/$maxAttempts: ${candidate.hostname} (${candidate.country})');
+        print('📊 Server stats: ${candidate.speedMbps.toStringAsFixed(1)} Mbps, ${candidate.pingMs}ms ping, $protocol');
         
         // Use the decoded OpenVPN config directly
-        final ovpnConfig = candidate.ovpnConfig;
-        if (ovpnConfig == null || ovpnConfig.isEmpty) {
-          print('⚠️ Skipping ${candidate.hostname} - no valid config');
-          continue; // Skip servers without valid config
-        }
+        final ovpnConfig = candidate.ovpnConfig!;
         
         print('✅ Config found for ${candidate.hostname}, attempting connection...');
         _currentProfile = ovpnConfig;
@@ -170,10 +196,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         if (ok) {
           print('🚀 Successfully initiated connection to ${candidate.hostname}');
           return; // stop after first successful kick-off
+        } else {
+          print('⚠️ Connection attempt failed for ${candidate.hostname}, trying next server...');
         }
       } catch (e) {
         print('❌ Failed to connect to ${candidate.hostname}: $e');
         // try next candidate
+      }
+      
+      // Small delay between attempts
+      if (i < maxAttempts - 1) {
+        await Future.delayed(const Duration(milliseconds: 500));
       }
     }
     if (mounted) {

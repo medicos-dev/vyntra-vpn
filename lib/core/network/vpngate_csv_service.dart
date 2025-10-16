@@ -37,8 +37,11 @@ class VpnGateCsvService {
           // Decode Base64 to get OpenVPN config text
           final ovpnText = utf8.decode(base64.decode(base64Config));
           
-          // Validate that it's a proper OpenVPN config
-          if (!ovpnText.contains('client') || !ovpnText.contains('remote')) {
+          // Comprehensive validation that it's a proper OpenVPN config
+          if (!ovpnText.contains('client') || 
+              !ovpnText.contains('remote') ||
+              !ovpnText.contains('<ca>') ||
+              !ovpnText.contains('</ca>')) {
             continue;
           }
 
