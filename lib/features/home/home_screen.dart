@@ -142,15 +142,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     final ctrl = ref.read(vpnControllerProvider);
     
     // Filter OpenVPN servers with valid configs
-    final List<VpnServer> openvpnServers = servers
+    final List<VpnServer> allOpenvpn = servers
         .where((s) => s.protocol == VpnProtocol.openvpn && s.ovpnConfig != null && s.ovpnConfig!.isNotEmpty)
-        // Exclude SoftEther/PacketiX generated configs which often fail in standard OpenVPN
+        .toList();
+    
+    // Prefer pure OpenVPN configs; keep SoftEther/PacketiX as fallback
+    final List<VpnServer> primary = allOpenvpn
         .where((s) {
           final cfg = s.ovpnConfig!;
           final isSoftEther = cfg.contains('PacketiX') || cfg.contains('SoftEther');
           return !isSoftEther;
         })
         .toList();
+    final List<VpnServer> fallback = allOpenvpn
+        .where((s) {
+          final cfg = s.ovpnConfig!;
+          return cfg.contains('PacketiX') || cfg.contains('SoftEther');
+        })
+        .toList();
+    
+    final List<VpnServer> openvpnServers = [
+      ...primary,
+      if (primary.isEmpty) ...fallback,
+    ];
     
     if (openvpnServers.isEmpty) {
       print('❌ No OpenVPN servers with valid configs found');

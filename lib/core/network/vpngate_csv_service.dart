@@ -23,75 +23,85 @@ class VpnGateCsvService {
       final csv = response.body.split('\n');
       final List<VpnServer> servers = [];
 
-      for (final line in csv) {
+      // Find header and map indices
+      int headerIdx = -1;
+      List<String> headerCols = [];
+      for (int i = 0; i < csv.length; i++) {
+        final l = csv[i];
+        if (l.startsWith('*') || l.trim().isEmpty) continue;
+        final parts = _parseCsvLine(l);
+        if (parts.any((c) => c.contains('OpenVPN_ConfigData_Base64'))) {
+          headerIdx = i;
+          headerCols = parts.map((e) => e.trim()).toList();
+          break;
+        }
+      }
+      if (headerIdx == -1) {
+        return servers;
+      }
+
+      int hostIdx = headerCols.indexOf('HostName');
+      int ipIdx = headerCols.indexOf('IP');
+      int countryIdx = headerCols.indexOf('CountryLong');
+      int scoreIdx = headerCols.indexOf('Score');
+      int pingIdx = headerCols.indexOf('Ping');
+      int speedIdx = headerCols.indexOf('Speed');
+      int b64Idx = headerCols.indexOf('OpenVPN_ConfigData_Base64');
+      if ([hostIdx, ipIdx, countryIdx, b64Idx].any((i) => i == -1)) {
+        return servers;
+      }
+
+      for (int i = headerIdx + 1; i < csv.length; i++) {
+        final line = csv[i];
         // Skip comments and empty lines
         if (line.startsWith('*') || line.trim().isEmpty) continue;
-        
+
         final parts = _parseCsvLine(line);
-        if (parts.length < 15) continue;
-        
-        final base64Config = parts.last.trim();
+        if (parts.length <= b64Idx) continue;
+
+        String base64Config = parts[b64Idx].trim();
         if (base64Config.isEmpty) continue;
 
+        // Clean and pad Base64
+        String cleanBase64 = base64Config.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+        // Auto pad to multiple of 4
+        final rem = cleanBase64.length % 4;
+        if (rem != 0) {
+          cleanBase64 = cleanBase64.padRight(cleanBase64.length + (4 - rem), '=');
+        }
+
         try {
-          // Clean and validate Base64 string first
-          String cleanBase64 = base64Config.trim();
-          
-          // Remove any non-Base64 characters
-          cleanBase64 = cleanBase64.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
-          
-          // Check if length is valid for Base64
-          if (cleanBase64.length % 4 != 0) {
-            print('⚠️ Skipping server due to invalid Base64 length: ${cleanBase64.length}');
-            continue;
-          }
-          
-          // Check if it's a valid Base64 string
-          if (!RegExp(r'^[A-Za-z0-9+/]*={0,2}$').hasMatch(cleanBase64)) {
-            print('⚠️ Skipping server due to invalid Base64 format');
-            continue;
-          }
-          
           // Decode Base64 to get OpenVPN config text
           final ovpnText = utf8.decode(base64.decode(cleanBase64));
-          
+
           // Comprehensive validation that it's a proper OpenVPN config
-          if (!ovpnText.contains('client') || 
+          if (!ovpnText.contains('client') ||
               !ovpnText.contains('remote') ||
               !ovpnText.contains('<ca>') ||
               !ovpnText.contains('</ca>')) {
-            print('⚠️ Skipping server due to invalid OpenVPN config content');
+            // Skip if essential elements missing
             continue;
           }
 
           servers.add(VpnServer.fromVpnGate(
-            hostName: parts[0].trim(),
-            ip: parts[1].trim(),
-            country: parts[5].trim(),
-            score: int.tryParse(parts[2].trim()) ?? 0,
-            pingMs: int.tryParse(parts[3].trim()) ?? 9999,
-            speedBps: int.tryParse(parts[4].trim()) ?? 0,
-            ovpnBase64: cleanBase64, // Use the cleaned Base64
+            hostName: parts.length > hostIdx ? parts[hostIdx].trim() : 'unknown',
+            ip: parts.length > ipIdx ? parts[ipIdx].trim() : '0.0.0.0',
+            country: parts.length > countryIdx ? parts[countryIdx].trim() : 'Unknown',
+            score: parts.length > scoreIdx ? int.tryParse((parts[scoreIdx]).trim()) ?? 0 : 0,
+            pingMs: parts.length > pingIdx ? int.tryParse((parts[pingIdx]).trim()) ?? 9999 : 9999,
+            speedBps: parts.length > speedIdx ? int.tryParse((parts[speedIdx]).trim()) ?? 0 : 0,
+            ovpnBase64: cleanBase64,
           ));
         } catch (e) {
           // Skip servers with invalid Base64 configs
-          print('Skipping server ${parts[0]} due to invalid config: $e');
+          // print('Skipping server due to invalid Base64: $e');
           continue;
         }
       }
 
-      print('✅ Successfully loaded ${servers.length} VPNGate servers');
-      if (servers.isNotEmpty) {
-        final firstServer = servers.first;
-        final configPreview = firstServer.ovpnConfig?.substring(0, 120) ?? 'No config';
-        print('📋 First server: ${firstServer.hostname} (${firstServer.country})');
-        print('🔧 First OVPN config preview: $configPreview...');
-        print('🌐 Server has valid config: ${firstServer.ovpnConfig != null && firstServer.ovpnConfig!.isNotEmpty}');
-      }
       return servers;
     } catch (e) {
-      print('❌ Error fetching VPNGate servers: $e');
-      return [];
+      return <VpnServer>[];
     }
   }
 
