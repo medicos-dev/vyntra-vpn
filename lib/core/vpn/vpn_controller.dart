@@ -130,9 +130,9 @@ class VpnController {
       Timer? connectionTimeout;
       
       // Set up timeout
-      connectionTimeout = Timer(const Duration(seconds: 15), () {
+      connectionTimeout = Timer(const Duration(seconds: 30), () {
         if (!connectionCompleter.isCompleted) {
-          print('⏰ Connection timeout after 15 seconds');
+          print('⏰ Connection timeout after 30 seconds');
           _lastError = 'Connection timeout - server may be unreachable';
           _set(VpnState.failed);
           connectionCompleter.complete(false);
@@ -163,7 +163,7 @@ class VpnController {
           result = await _engine.connect(
             configToUse,
             'Vyntra',
-            certIsRequired: false,
+            certIsRequired: true,
             username: username,
             password: password,
           );
@@ -251,19 +251,7 @@ class VpnController {
       optimized = 'client\n' + optimized;
     }
     
-    // Convert UDP to TCP for better reliability
-    if (optimized.contains('proto udp')) {
-      print('🔄 Converting UDP to TCP for better compatibility...');
-      optimized = optimized.replaceAll('proto udp', 'proto tcp');
-      // Change port from 1194 (UDP) to 443 (TCP) if needed
-      optimized = optimized.replaceAll(':1194', ':443');
-      print('✅ Config converted to TCP protocol');
-    }
-    
-    // Ensure we have a protocol directive
-    if (!optimized.contains('proto ')) {
-      optimized += '\nproto tcp\n';
-    }
+    // Honor the protocol specified in the config (no conversion or injection)
     
     // Ensure we have a dev directive
     if (!optimized.contains('dev ')) {
