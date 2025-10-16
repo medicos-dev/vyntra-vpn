@@ -298,9 +298,20 @@ class VpnController {
       optimized += '\nconnect-retry-delay 2\n';
     }
     
-    // Add verbosity for debugging
-    if (!optimized.contains('verb ')) {
-      optimized += '\nverb 3\n';
+    // SoftEther/PacketiX compatibility directives (inject only if absent)
+    if (!RegExp(r'^\s*setenv\s+CLIENT_CERT\s+0', multiLine: true).hasMatch(optimized)) {
+      optimized += '\nsetenv CLIENT_CERT 0\n';
+    }
+    if (!RegExp(r'^\s*remote-cert-tls\s+server', multiLine: true).hasMatch(optimized)) {
+      optimized += '\nremote-cert-tls server\n';
+    }
+    if (!RegExp(r'^\s*auth-nocache\b', multiLine: true).hasMatch(optimized)) {
+      optimized += '\nauth-nocache\n';
+    }
+    
+    // Increase verbosity for better diagnostics during bring-up
+    if (!RegExp(r'^\s*verb\s+\d+', multiLine: true).hasMatch(optimized)) {
+      optimized += '\nverb 5\n';
     }
     
     // Add mute for less noise
