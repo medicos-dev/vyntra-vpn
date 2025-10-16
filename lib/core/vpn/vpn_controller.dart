@@ -125,6 +125,10 @@ class VpnController {
       // Try the correct API call - the plugin expects specific parameters
       print('🚀 Starting OpenVPN connection...');
       
+      // Sanitize config (trim trailing spaces and ensure newline at end)
+      configToUse = configToUse.trimRight();
+      if (!configToUse.endsWith('\n')) configToUse += '\n';
+      
       // Set up a proper timeout mechanism
       final Completer<bool> connectionCompleter = Completer<bool>();
       Timer? connectionTimeout;
@@ -339,6 +343,10 @@ class VpnController {
 
   Future<void> disconnect() async {
     try {
+      // Avoid calling into plugin if already disconnected
+      if (_current == VpnState.disconnected) {
+        return;
+      }
       // Use dynamic to handle different plugin API versions
       final result = (_engine as dynamic).disconnect();
       

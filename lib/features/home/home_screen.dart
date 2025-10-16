@@ -692,6 +692,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                             return;
                           }
                           _currentProfile = ovpnConfig;
+                          
+                          // Ensure any existing session is terminated before starting a new one
+                          try {
+                            await ctrl.disconnect();
+                          } catch (_) {}
+                          
                           Navigator.of(context).pop();
                           await ctrl.connect(ovpnConfig);
                           return;
