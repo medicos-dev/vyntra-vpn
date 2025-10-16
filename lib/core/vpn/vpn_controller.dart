@@ -163,7 +163,7 @@ class VpnController {
           result = await _engine.connect(
             configToUse,
             'Vyntra',
-            certIsRequired: true,
+            certIsRequired: false,
             username: username,
             password: password,
           );
