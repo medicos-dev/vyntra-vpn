@@ -177,6 +177,18 @@ class VpnController {
         // Prefer connecting by .ovpn file path
         dynamic result;
         try {
+          // If auth is required, create an auth file and point config to it
+          if (requiresAuth) {
+            final authFile = await _saveAuthToCache(username, password, nameHint: 'ovpn_auth');
+            // Replace any auth-user-pass line to reference our auth file
+            if (RegExp(r'^\s*auth-user-pass\b', multiLine: true).hasMatch(configToUse)) {
+              configToUse = configToUse.replaceAll(RegExp(r'^\s*auth-user-pass.*$', multiLine: true), 'auth-user-pass ${authFile.path}');
+            } else {
+              configToUse += '\nauth-user-pass ${authFile.path}\n';
+            }
+            print('🔐 Using auth file: ${authFile.path}');
+          }
+
           final file = await _saveOvpnToCache(configToUse, nameHint: 'profile');
           print('📁 Saved OVPN to: ${file.path}');
           result = await (_engine as dynamic).connect(file.path, 'Vyntra', certIsRequired: false, username: username, password: password);
@@ -403,6 +415,14 @@ class VpnController {
     final fileName = (nameHint ?? 'vyntra').replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
     final file = File('${dir.path}/$fileName.ovpn');
     await file.writeAsString(ovpnText, flush: true);
+    return file;
+  }
+
+  Future<File> _saveAuthToCache(String username, String password, {String? nameHint}) async {
+    final dir = await getTemporaryDirectory();
+    final fileName = (nameHint ?? 'ovpn_auth').replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+    final file = File('${dir.path}/$fileName.txt');
+    await file.writeAsString('$username\n$password\n', flush: true);
     return file;
   }
 }
