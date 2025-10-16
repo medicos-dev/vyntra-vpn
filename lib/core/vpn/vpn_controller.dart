@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:openvpn_flutter/openvpn_flutter.dart';
 // TODO: Add WireGuard/Shadowsocks plugins when finalized.
 import 'session_manager.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 enum VpnState { disconnected, connecting, connected, reconnecting, failed }
 
@@ -172,25 +174,34 @@ class VpnController {
           print('🔓 No authentication required');
         }
         
-        // Use the correct API call with appropriate credentials
+        // Prefer connecting by .ovpn file path
         dynamic result;
-        
         try {
-          result = await _engine.connect(
-            configToUse,
-            'Vyntra',
-            certIsRequired: false,
-            username: username,
-            password: password,
-          );
+          final file = await _saveOvpnToCache(configToUse, nameHint: 'profile');
+          print('📁 Saved OVPN to: ${file.path}');
+          result = await (_engine as dynamic).connect(file.path, 'Vyntra', certIsRequired: false, username: username, password: password);
           _sessionStarted = true;
-          print('📊 Connection result: $result');
-        } catch (e) {
-          print('❌ Connection failed: $e');
-          _lastError = 'Connection failed: $e';
-          _set(VpnState.failed);
-          connectionCompleter.complete(false);
-          return false;
+          print('📊 Connection result (path): $result');
+        } catch (ePath) {
+          print('⚠️ Path-based connect failed: $ePath');
+          // Fallback to inline connect
+          try {
+            result = await _engine.connect(
+              configToUse,
+              'Vyntra',
+              certIsRequired: false,
+              username: username,
+              password: password,
+            );
+            _sessionStarted = true;
+            print('📊 Connection result (inline): $result');
+          } catch (e) {
+            print('❌ Connection failed: $e');
+            _lastError = 'Connection failed: $e';
+            _set(VpnState.failed);
+            connectionCompleter.complete(false);
+            return false;
+          }
         }
         
         // Wait a bit for the connection to establish
@@ -385,5 +396,13 @@ class VpnController {
   Future<void> dispose() async {
     _sessionManager.dispose();
     await _stateCtrl.close();
+  }
+
+  Future<File> _saveOvpnToCache(String ovpnText, {String? nameHint}) async {
+    final dir = await getTemporaryDirectory();
+    final fileName = (nameHint ?? 'vyntra').replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+    final file = File('${dir.path}/$fileName.ovpn');
+    await file.writeAsString(ovpnText, flush: true);
+    return file;
   }
 }
