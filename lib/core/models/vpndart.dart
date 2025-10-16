@@ -96,72 +96,72 @@ class Vpngate {
 }
 
 class SampleServers {
-  String? HostName;
-  String? IP;
-  String? CountryLong;
-  int? Score;
-  int? Ping;
-  int? Speed;
-  bool? HasConfig;
+  String? hostName;
+  String? ip;
+  String? country;
+  int? score;
+  int? ping;
+  int? speed;
+  bool? hasConfig;
 
-  SampleServers({this.HostName, this.IP, this.CountryLong, this.Score, this.Ping, this.Speed, this.HasConfig});
+  SampleServers({this.hostName, this.ip, this.country, this.score, this.ping, this.speed, this.hasConfig});
 
   SampleServers.fromJson(Map<String, dynamic> json) {
-    HostName = json['HostName'] as String?;
-    IP = json['IP'] as String?;
-    CountryLong = json['CountryLong'] as String?;
-    Score = (json['Score'] is String) ? int.tryParse(json['Score'] as String) : json['Score'] as int?;
-    Ping = (json['Ping'] is String) ? int.tryParse(json['Ping'] as String) : json['Ping'] as int?;
-    Speed = (json['Speed'] is String) ? int.tryParse(json['Speed'] as String) : json['Speed'] as int?;
-    HasConfig = json['HasConfig'] as bool?;
+    hostName = json['hostName'] as String?;
+    ip = json['ip'] as String?;
+    country = json['country'] as String?;
+    score = json['score'] as int?;
+    ping = json['ping'] as int?;
+    speed = json['speed'] as int?;
+    hasConfig = json['hasConfig'] as bool?;
   }
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
-    data['HostName'] = HostName;
-    data['IP'] = IP;
-    data['CountryLong'] = CountryLong;
-    data['Score'] = Score;
-    data['Ping'] = Ping;
-    data['Speed'] = Speed;
-    data['HasConfig'] = HasConfig;
+    data['hostName'] = hostName;
+    data['ip'] = ip;
+    data['country'] = country;
+    data['score'] = score;
+    data['ping'] = ping;
+    data['speed'] = speed;
+    data['hasConfig'] = hasConfig;
     return data;
   }
 }
 
 class AllServers {
-  String? HostName;
-  String? IP;
-  String? CountryLong;
-  int? Score;
-  int? Ping;
-  int? Speed;
-  bool? HasConfig;
-  String? OpenVPN_ConfigData_Base64;
+  String? hostName;
+  String? ip;
+  String? country;
+  int? score;
+  int? ping;
+  int? speed;
+  bool? hasConfig;
+  String? ovpnBase64;
 
-  AllServers({this.HostName, this.IP, this.CountryLong, this.Score, this.Ping, this.Speed, this.HasConfig, this.OpenVPN_ConfigData_Base64});
+  AllServers({this.hostName, this.ip, this.country, this.score, this.ping, this.speed, this.hasConfig, this.ovpnBase64});
 
   AllServers.fromJson(Map<String, dynamic> json) {
-    HostName = json['HostName'] as String?;
-    IP = json['IP'] as String?;
-    CountryLong = json['CountryLong'] as String?;
-    Score = (json['Score'] is String) ? int.tryParse(json['Score'] as String) : json['Score'] as int?;
-    Ping = (json['Ping'] is String) ? int.tryParse(json['Ping'] as String) : json['Ping'] as int?;
-    Speed = (json['Speed'] is String) ? int.tryParse(json['Speed'] as String) : json['Speed'] as int?;
-    HasConfig = json['HasConfig'] as bool?;
-    OpenVPN_ConfigData_Base64 = json['OpenVPN_ConfigData_Base64'] as String?;
+    hostName = json['hostName'] as String?;
+    ip = json['ip'] as String?;
+    country = json['country'] as String?;
+    score = json['score'] as int?;
+    ping = json['ping'] as int?;
+    speed = json['speed'] as int?;
+    hasConfig = json['hasConfig'] as bool?;
+    ovpnBase64 = json['ovpnBase64'] as String?;
   }
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
-    data['HostName'] = HostName;
-    data['IP'] = IP;
-    data['CountryLong'] = CountryLong;
-    data['Score'] = Score;
-    data['Ping'] = Ping;
-    data['Speed'] = Speed;
-    data['HasConfig'] = HasConfig;
-    data['OpenVPN_ConfigData_Base64'] = OpenVPN_ConfigData_Base64;
+    data['hostName'] = hostName;
+    data['ip'] = ip;
+    data['country'] = country;
+    data['score'] = score;
+    data['ping'] = ping;
+    data['speed'] = speed;
+    data['hasConfig'] = hasConfig;
+    data['ovpnBase64'] = ovpnBase64;
     return data;
   }
 }
@@ -179,7 +179,7 @@ class CloudflareWarp {
   CloudflareWarp.fromJson(Map<String, dynamic> json) {
     name = json['name'] as String?;
     type = json['type'] as String?;
-    servers = (json['servers'] is String) ? int.tryParse(json['servers'] as String) : json['servers'] as int?;
+    servers = json['servers'] as int?;
     description = json['description'] as String?;
     endpoint = json['endpoint'] as String?;
     features = (json['features'] as List<dynamic>?)?.map((e) => e.toString()).toList();
