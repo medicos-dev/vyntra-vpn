@@ -290,8 +290,19 @@ class VpnGateService {
   }
 
   bool _isValidBase64(String str) {
+    if (str.isEmpty) return false;
+    
+    // Clean the string first
+    String cleanStr = str.trim().replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+    
+    // Check if length is valid for Base64
+    if (cleanStr.length % 4 != 0) return false;
+    
+    // Check if it's a valid Base64 string format
+    if (!RegExp(r'^[A-Za-z0-9+/]*={0,2}$').hasMatch(cleanStr)) return false;
+    
     try {
-      base64.decode(str);
+      base64.decode(cleanStr);
       return true;
     } catch (e) {
       return false;

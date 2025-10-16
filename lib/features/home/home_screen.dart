@@ -178,7 +178,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       print('  ${i + 1}. ${server.hostname} (${server.country}) - ${server.pingMs}ms, ${server.speedMbps.toStringAsFixed(1)} Mbps, $protocol');
     }
 
-    // Try up to 3 best servers
+    // Try up to 3 best servers with improved retry logic
     final maxAttempts = 3;
     for (int i = 0; i < maxAttempts && i < openvpnServers.length; i++) {
       final candidate = openvpnServers[i];
@@ -192,21 +192,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         
         print('✅ Config found for ${candidate.hostname}, attempting connection...');
         _currentProfile = ovpnConfig;
-        final ok = await ctrl.connect(ovpnConfig);
+        
+        // Wait for connection result with timeout
+        final connectionFuture = ctrl.connect(ovpnConfig);
+        final timeoutFuture = Future.delayed(const Duration(seconds: 20), () => false);
+        
+        final ok = await Future.any([connectionFuture, timeoutFuture]);
+        
         if (ok) {
-          print('🚀 Successfully initiated connection to ${candidate.hostname}');
-          return; // stop after first successful kick-off
+          print('🚀 Successfully connected to ${candidate.hostname}');
+          return; // stop after first successful connection
         } else {
           print('⚠️ Connection attempt failed for ${candidate.hostname}, trying next server...');
+          // Disconnect any partial connection before trying next server
+          await ctrl.disconnect();
         }
       } catch (e) {
         print('❌ Failed to connect to ${candidate.hostname}: $e');
-        // try next candidate
+        // Disconnect any partial connection before trying next server
+        await ctrl.disconnect();
       }
       
-      // Small delay between attempts
+      // Progressive delay between attempts (longer delays for later attempts)
       if (i < maxAttempts - 1) {
-        await Future.delayed(const Duration(milliseconds: 500));
+        final delayMs = (i + 1) * 1000; // 1s, 2s, 3s delays
+        print('⏳ Waiting ${delayMs}ms before next attempt...');
+        await Future.delayed(Duration(milliseconds: delayMs));
       }
     }
     if (mounted) {

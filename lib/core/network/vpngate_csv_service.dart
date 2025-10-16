@@ -34,14 +34,33 @@ class VpnGateCsvService {
         if (base64Config.isEmpty) continue;
 
         try {
+          // Clean and validate Base64 string first
+          String cleanBase64 = base64Config.trim();
+          
+          // Remove any non-Base64 characters
+          cleanBase64 = cleanBase64.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+          
+          // Check if length is valid for Base64
+          if (cleanBase64.length % 4 != 0) {
+            print('⚠️ Skipping server due to invalid Base64 length: ${cleanBase64.length}');
+            continue;
+          }
+          
+          // Check if it's a valid Base64 string
+          if (!RegExp(r'^[A-Za-z0-9+/]*={0,2}$').hasMatch(cleanBase64)) {
+            print('⚠️ Skipping server due to invalid Base64 format');
+            continue;
+          }
+          
           // Decode Base64 to get OpenVPN config text
-          final ovpnText = utf8.decode(base64.decode(base64Config));
+          final ovpnText = utf8.decode(base64.decode(cleanBase64));
           
           // Comprehensive validation that it's a proper OpenVPN config
           if (!ovpnText.contains('client') || 
               !ovpnText.contains('remote') ||
               !ovpnText.contains('<ca>') ||
               !ovpnText.contains('</ca>')) {
+            print('⚠️ Skipping server due to invalid OpenVPN config content');
             continue;
           }
 
@@ -52,7 +71,7 @@ class VpnGateCsvService {
             score: int.tryParse(parts[2].trim()) ?? 0,
             pingMs: int.tryParse(parts[3].trim()) ?? 9999,
             speedBps: int.tryParse(parts[4].trim()) ?? 0,
-            ovpnBase64: base64Config,
+            ovpnBase64: cleanBase64, // Use the cleaned Base64
           ));
         } catch (e) {
           // Skip servers with invalid Base64 configs
