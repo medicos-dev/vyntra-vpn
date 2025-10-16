@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/network/vpngate_service.dart';
+// import '../../core/network/vpngate_service.dart';
 import '../../core/network/unified_vpn_service.dart';
 import '../../core/models/vpn_server.dart';
 import '../../core/vpn/reconnect_watchdog.dart';
@@ -8,7 +8,7 @@ import '../../core/vpn/vpn_controller.dart';
 import '../servers/server_list_screen.dart';
 import '../settings/settings_screen.dart';
 
-final vpngateProvider = Provider((ref) => VpnGateService());
+// final vpngateProvider = Provider((ref) => VpnGateService());
 final unifiedVpnProvider = Provider((ref) => UnifiedVpnService());
 final vpnControllerProvider = Provider((ref) => VpnController());
 

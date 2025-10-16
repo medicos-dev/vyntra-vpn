@@ -119,7 +119,9 @@ class UnifiedVpnService {
         for (final serverJson in vpngateServers) {
           try {
             final Map<String, dynamic> m = serverJson is Map<String, dynamic> ? serverJson : <String, dynamic>{};
-            final base64Data = (m['ovpnBase64'] ?? '').toString();
+            // Accept multiple key variants for Base64 config
+            final dynamic b64Any = (m['ovpnBase64'] ?? m['ovpn_base64'] ?? m['OpenVPN_ConfigData_Base64'] ?? m['openvpn_config_base64'] ?? '');
+            final String base64Data = (b64Any ?? '').toString();
             
             // Debug first few servers
             if (allServers.length < 3) {
