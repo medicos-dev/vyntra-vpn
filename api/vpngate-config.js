@@ -113,6 +113,8 @@ export default async function handler(req, res) {
 
     const needle = hostOrIp.toLowerCase();
     let b64 = '';
+    let debugInfo = { totalRows: lines.length - 1, hostIdx, ipIdx, b64Idx, needle, checked: 0 };
+    
     for (let i = 1; i < lines.length; i++) {
       const row = lines[i];
       const parts = splitCsvRow(row);
@@ -120,13 +122,19 @@ export default async function handler(req, res) {
       const trimQuotes = (s) => (s || '').trim().replace(/^"|"$/g, '');
       const hn = trimQuotes(parts[hostIdx]).toLowerCase();
       const ip = trimQuotes(parts[ipIdx]);
+      debugInfo.checked++;
+      
       if (hn === needle || ip === hostOrIp.trim()) {
         b64 = (parts[b64Idx] || '').trim();
+        debugInfo.found = { hn, ip, b64Length: b64.length };
         if (b64) break;
       }
     }
-    if (!b64) return res.status(404).json({ error: 'Config missing' });
-    if (!b64) return res.status(404).json({ error: 'Config missing' });
+    
+    if (!b64) {
+      console.log('Debug info:', JSON.stringify(debugInfo));
+      return res.status(404).json({ error: 'Config missing', debug: debugInfo });
+    }
     return res.status(200).json({ host: hostOrIp, ovpnBase64: b64 });
   } catch (e) {
     return res.status(500).json({ error: 'Server error', message: String(e) });
