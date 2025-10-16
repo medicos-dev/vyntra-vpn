@@ -67,6 +67,11 @@ export default async function handler(req, res) {
 
     const cols = header.split(',').map(s => s.trim());
     const lower = cols.map(c => c.toLowerCase());
+    
+    // Debug: log the header columns we found
+    console.log('Header columns:', cols);
+    console.log('Lower columns:', lower);
+    
     const findColIncludes = (needles) => {
       for (let i = 0; i < lower.length; i++) {
         const cell = lower[i];
@@ -81,13 +86,18 @@ export default async function handler(req, res) {
     const ipIdx = findColIncludes(['ip']);
     const b64Idx = findColIncludes([
       'openvpn_configdata_base64',
-      'openvpn_config_data_base64',
+      'openvpn_config_data_base64', 
       'openvpn config data base64',
       'configdata_base64',
       'config_data_base64',
+      'config data base64',
+      'base64'
     ]);
+    
+    console.log('Column indices:', { hostIdx, ipIdx, b64Idx });
+    
     if (hostIdx == null || ipIdx == null || b64Idx == null) {
-      return res.status(502).json({ error: 'Invalid CSV columns' });
+      return res.status(502).json({ error: 'Invalid CSV columns', debug: { cols, lower, hostIdx, ipIdx, b64Idx } });
     }
 
     // CSV row splitter supporting quoted fields with commas
