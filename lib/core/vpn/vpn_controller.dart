@@ -323,9 +323,9 @@ class VpnController {
 
       // Start connection with a simple timeout guard
       final Completer<bool> done = Completer<bool>();
-      final timeout = Timer(const Duration(seconds: 15), () async {
+      final timeout = Timer(const Duration(seconds: 45), () async {
         if (!done.isCompleted && _current == VpnState.connecting) {
-          print('⏰ Connection timeout after 15 seconds');
+          print('⏰ Connection timeout after 45 seconds');
           _lastError = 'Connection timeout - server may be unreachable';
           _sessionStarted = false;
           _stopCountdown();
