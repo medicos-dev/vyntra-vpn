@@ -82,17 +82,9 @@ export default async function handler(req, res) {
       return -1;
     };
 
-    const hostIdx = findColIncludes(['hostname', 'host name']);
+    const hostIdx = findColIncludes(['hostname']);
     const ipIdx = findColIncludes(['ip']);
-    const b64Idx = findColIncludes([
-      'openvpn_configdata_base64',
-      'openvpn_config_data_base64', 
-      'openvpn config data base64',
-      'configdata_base64',
-      'config_data_base64',
-      'config data base64',
-      'base64'
-    ]);
+    const b64Idx = findColIncludes(['openvpn_configdata_base64']);
     
     console.log('Column indices:', { hostIdx, ipIdx, b64Idx });
     
