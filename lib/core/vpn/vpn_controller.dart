@@ -45,12 +45,19 @@ class VpnController {
       _set(VpnState.connecting);
       _lastError = '';
       
+      print('🔌 Attempting VPN connection...');
+      print('📄 Config length: ${ovpnContent.length} characters');
+      print('🔍 Config preview: ${ovpnContent.substring(0, 100)}...');
+      
       // Validate OpenVPN config content
       if (!ovpnContent.contains('client') || !ovpnContent.contains('remote')) {
         _lastError = 'Invalid OpenVPN configuration';
+        print('❌ Invalid OpenVPN config - missing client or remote directives');
         _set(VpnState.failed);
         return false;
       }
+      
+      print('✅ OpenVPN config validation passed');
       
       // Use dynamic to handle different plugin API versions
       final result = (_engine as dynamic).connect(ovpnContent, 'Vyntra', certIsRequired: false);
@@ -66,14 +73,17 @@ class VpnController {
       // Simulate connection success after a short delay
       Timer(const Duration(seconds: 3), () {
         if (_current == VpnState.connecting) {
+          print('🎉 VPN connection established successfully!');
           _set(VpnState.connected);
           _sessionManager.startSession(); // Start 1-hour session
         }
       });
       
+      print('⏳ Connection initiated, waiting for result...');
       return true;
     } catch (e) {
       _lastError = 'Connection failed: $e';
+      print('❌ VPN connection failed: $e');
       _set(VpnState.failed);
       return false;
     }

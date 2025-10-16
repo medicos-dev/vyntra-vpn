@@ -58,9 +58,17 @@ class VpnGateCsvService {
         }
       }
 
+      print('✅ Successfully loaded ${servers.length} VPNGate servers');
+      if (servers.isNotEmpty) {
+        final firstServer = servers.first;
+        final configPreview = firstServer.ovpnConfig?.substring(0, 120) ?? 'No config';
+        print('📋 First server: ${firstServer.hostname} (${firstServer.country})');
+        print('🔧 First OVPN config preview: $configPreview...');
+        print('🌐 Server has valid config: ${firstServer.ovpnConfig != null && firstServer.ovpnConfig!.isNotEmpty}');
+      }
       return servers;
     } catch (e) {
-      print('Error fetching VPNGate servers: $e');
+      print('❌ Error fetching VPNGate servers: $e');
       return [];
     }
   }

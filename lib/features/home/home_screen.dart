@@ -91,6 +91,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           servers = csvServers;
           _loadingServers = false;
         });
+        print('🏠 Home screen loaded ${servers.length} servers');
+        if (servers.isNotEmpty) {
+          print('🚀 Fastest server: ${servers.first.hostname} (${servers.first.country}) - ${servers.first.pingMs}ms');
+        }
       }
     } catch (e) {
       print('Error loading servers: $e');
@@ -150,17 +154,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
 
     for (final candidate in openvpnServers) {
       try {
+        print('🎯 Trying to connect to: ${candidate.hostname} (${candidate.country})');
+        print('📊 Server stats: ${candidate.speedMbps.toStringAsFixed(1)} Mbps, ${candidate.pingMs}ms ping');
+        
         // Use the decoded OpenVPN config directly
         final ovpnConfig = candidate.ovpnConfig;
         if (ovpnConfig == null || ovpnConfig.isEmpty) {
+          print('⚠️ Skipping ${candidate.hostname} - no valid config');
           continue; // Skip servers without valid config
         }
         
+        print('✅ Config found for ${candidate.hostname}, attempting connection...');
         _currentProfile = ovpnConfig;
         final ok = await ctrl.connect(ovpnConfig);
-        if (ok) return; // stop after first successful kick-off
+        if (ok) {
+          print('🚀 Successfully initiated connection to ${candidate.hostname}');
+          return; // stop after first successful kick-off
+        }
       } catch (e) {
-        print('Failed to connect to ${candidate.hostname}: $e');
+        print('❌ Failed to connect to ${candidate.hostname}: $e');
         // try next candidate
       }
     }
