@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/vpngate_service.dart';
-import '../../core/network/vpngate_csv_service.dart';
 import '../../core/network/unified_vpn_service.dart';
 import '../../core/models/vpn_server.dart';
 import '../../core/vpn/reconnect_watchdog.dart';
@@ -117,15 +116,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
-      // Force refresh by fetching fresh CSV data
-      final csvServers = await VpnGateCsvService.fetchVpnGateServers();
+      // Force refresh by clearing cache and fetching fresh data from unified service
+      final vpnService = ref.read(unifiedVpnProvider);
+      await vpnService.clearCache();
+      
+      final fetchedServers = await vpnService.fetchAllServers();
 
       if (mounted) {
         setState(() {
-          csvServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
-          servers = csvServers;
+          // Sort by ping (lowest first)
+          fetchedServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
+          servers = fetchedServers;
           _loadingServers = false;
         });
+        print('🔄 Refresh completed: ${servers.length} servers loaded');
+        if (servers.isNotEmpty) {
+          print('🚀 Fastest server after refresh: ${servers.first.hostname} (${servers.first.country}) - ${servers.first.pingMs}ms');
+        }
       }
     } catch (e) {
       print('Error retrying server load: $e');
@@ -133,6 +140,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         setState(() {
           _loadingServers = false;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to refresh servers: $e')),
+        );
       }
     }
   }
@@ -224,9 +234,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         print('✅ Config found for ${candidate.hostname}, attempting connection...');
         _currentProfile = ovpnConfig;
         
-        // Wait for connection result with timeout
+        // Wait for connection result with timeout (increased to 35s to match VPN controller)
         final connectionFuture = ctrl.connect(ovpnConfig);
-        final timeoutFuture = Future.delayed(const Duration(seconds: 20), () => false);
+        final timeoutFuture = Future.delayed(const Duration(seconds: 35), () => false);
         
         final ok = await Future.any([connectionFuture, timeoutFuture]);
         

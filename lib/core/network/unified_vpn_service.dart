@@ -107,9 +107,25 @@ class UnifiedVpnService {
             ? vpngateData['allServers'] as List
             : <dynamic>[]);
         
+        print('🔍 VPNGate servers count: ${vpngateServers.length}');
+        if (vpngateServers.isNotEmpty) {
+          final firstServer = vpngateServers.first;
+          if (firstServer is Map<String, dynamic>) {
+            print('🔍 First server keys: ${firstServer.keys.toList()}');
+            print('🔍 First server ovpnBase64 length: ${firstServer['ovpnBase64']?.toString().length ?? 'null'}');
+          }
+        }
+        
         for (final serverJson in vpngateServers) {
           try {
             final Map<String, dynamic> m = serverJson is Map<String, dynamic> ? serverJson : <String, dynamic>{};
+            final base64Data = (m['ovpnBase64'] ?? '').toString();
+            
+            // Debug first few servers
+            if (allServers.length < 3) {
+              print('🔍 Server ${allServers.length + 1}: ${m['hostName']} - Base64 length: ${base64Data.length}');
+            }
+            
             final server = VpnServer.fromVpnGate(
               hostName: (m['hostName'] ?? '').toString(),
               ip: (m['ip'] ?? '').toString(),
@@ -117,11 +133,11 @@ class UnifiedVpnService {
               score: (m['score'] is num ? (m['score'] as num).toInt() : 0),
               pingMs: (m['ping'] is num ? (m['ping'] as num).toInt() : 9999),
               speedBps: (m['speed'] is num ? (m['speed'] as num).toInt() : 0),
-              ovpnBase64: '', // Will be fetched separately when needed
+              ovpnBase64: base64Data, // Use actual Base64 data from API
             );
             allServers.add(server);
           } catch (e) {
-            // Skip invalid servers
+            print('⚠️ Failed to create server: $e');
           }
         }
       }
