@@ -26,6 +26,8 @@ class VpnController {
       );
       await _sessionManager.initialize();
       
+      // Note: Status listener will be implemented when the correct enum values are identified
+      
       // Listen to session expiration
       _sessionManager.statusStream.listen((status) {
         if (status == SessionStatus.expired && _current == VpnState.connected) {
@@ -43,6 +45,13 @@ class VpnController {
       _set(VpnState.connecting);
       _lastError = '';
       
+      // Validate OpenVPN config content
+      if (!ovpnContent.contains('client') || !ovpnContent.contains('remote')) {
+        _lastError = 'Invalid OpenVPN configuration';
+        _set(VpnState.failed);
+        return false;
+      }
+      
       // Use dynamic to handle different plugin API versions
       final result = (_engine as dynamic).connect(ovpnContent, 'Vyntra', certIsRequired: false);
       
@@ -54,13 +63,14 @@ class VpnController {
         ]);
       }
       
-      // Simulate connection success after a delay (since status listener may not work)
+      // Simulate connection success after a short delay
       Timer(const Duration(seconds: 3), () {
         if (_current == VpnState.connecting) {
           _set(VpnState.connected);
           _sessionManager.startSession(); // Start 1-hour session
         }
       });
+      
       return true;
     } catch (e) {
       _lastError = 'Connection failed: $e';

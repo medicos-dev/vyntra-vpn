@@ -1,4 +1,5 @@
 // Import the existing VpnGateServer for compatibility
+import 'dart:convert';
 import 'vpngate_server.dart';
 
 enum VpnProtocol {
@@ -193,6 +194,17 @@ class VpnServer {
   bool get isVeryFast {
     if (pingMs == null) return false;
     return pingMs! < 50;
+  }
+
+  // Get decoded OpenVPN config text
+  String? get ovpnConfig {
+    if (ovpnBase64 == null || ovpnBase64!.isEmpty) return null;
+    try {
+      return utf8.decode(base64.decode(ovpnBase64!));
+    } catch (e) {
+      print('Error decoding Base64 OpenVPN config: $e');
+      return null;
+    }
   }
 
   @override

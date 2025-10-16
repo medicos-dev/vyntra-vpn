@@ -67,6 +67,7 @@ export default async function handler(req, res) {
 
     const cols = header.split(',').map(s => s.trim());
     const lower = cols.map(c => c.toLowerCase());
+
     
     // Debug: log the header columns we found
     console.log('Header columns:', cols);

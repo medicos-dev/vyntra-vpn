@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/vpngate_service.dart';
+import '../../core/network/vpngate_csv_service.dart';
 import '../../core/network/unified_vpn_service.dart';
 import '../../core/models/vpn_server.dart';
 import '../../core/vpn/reconnect_watchdog.dart';
@@ -80,22 +81,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
-      final unifiedService = ref.read(unifiedVpnProvider);
-      // Fetch all servers from unified service (cached)
-      final allServers = await unifiedService.fetchAllServers();
+      // Use the new CSV service to fetch servers with decoded OpenVPN configs
+      final csvServers = await VpnGateCsvService.fetchVpnGateServers();
 
       if (mounted) {
         setState(() {
-          // Prefer lower ping first when available, but keep all protocols
-          final list = List<VpnServer>.from(
-            allServers.where((s) => s.protocol == VpnProtocol.openvpn),
-          );
-          list.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
-          servers = list; // Do not truncate so counts are accurate
+          // Sort by ping (lowest first)
+          csvServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
+          servers = csvServers;
           _loadingServers = false;
         });
       }
     } catch (e) {
+      print('Error loading servers: $e');
       if (mounted) {
         setState(() {
           _loadingServers = false;
@@ -111,19 +109,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
-      final unifiedService = ref.read(unifiedVpnProvider);
-      // Force refresh (bypass cache)
-      final allServers = await unifiedService.forceRefresh();
+      // Force refresh by fetching fresh CSV data
+      final csvServers = await VpnGateCsvService.fetchVpnGateServers();
 
       if (mounted) {
         setState(() {
-          final list = List<VpnServer>.from(allServers);
-          list.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
-          servers = list;
+          csvServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
+          servers = csvServers;
           _loadingServers = false;
         });
       }
     } catch (e) {
+      print('Error retrying server load: $e');
       if (mounted) {
         setState(() {
           _loadingServers = false;
@@ -151,34 +148,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     if (openvpnServers.isEmpty) return;
 
-    final vpngate = ref.read(vpngateProvider);
     for (final candidate in openvpnServers) {
       try {
-        String? ovpn = candidate.ovpnBase64;
-        if (ovpn == null || ovpn.isEmpty) {
-          final withConfig = await vpngate.getServerWithConfig(candidate.hostname);
-          if (withConfig != null && withConfig.ovpnBase64.isNotEmpty) {
-            ovpn = withConfig.ovpnBase64;
-          }
+        // Use the decoded OpenVPN config directly
+        final ovpnConfig = candidate.ovpnConfig;
+        if (ovpnConfig == null || ovpnConfig.isEmpty) {
+          continue; // Skip servers without valid config
         }
-        if (ovpn == null || ovpn.isEmpty) {
-          // Try by hostname then IP
-          final withConfigHost = await vpngate.getServerWithConfig(candidate.hostname);
-          if (withConfigHost != null && withConfigHost.ovpnBase64.isNotEmpty) {
-            ovpn = withConfigHost.ovpnBase64;
-          } else {
-            final withConfigByIp = await vpngate.getServerWithConfig(candidate.ip);
-            if (withConfigByIp == null || withConfigByIp.ovpnBase64.isEmpty) {
-              continue; // try next
-            }
-            ovpn = withConfigByIp.ovpnBase64;
-          }
-        }
-        final profile = vpngate.buildHardenedOvpn(ovpn);
-        _currentProfile = profile;
-        final ok = await ctrl.connect(profile);
+        
+        _currentProfile = ovpnConfig;
+        final ok = await ctrl.connect(ovpnConfig);
         if (ok) return; // stop after first successful kick-off
-      } catch (_) {
+      } catch (e) {
+        print('Failed to connect to ${candidate.hostname}: $e');
         // try next candidate
       }
     }
@@ -645,28 +627,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                         
                         // Handle different protocols
                         if (s.protocol == VpnProtocol.openvpn) {
-                          final service = ref.read(vpngateProvider);
-                          String? ovpnB64 = s.ovpnBase64;
-                          if (ovpnB64 == null || ovpnB64.isEmpty) {
-                            // Try by hostname then IP
-                            final withConfig = await service.getServerWithConfig(s.hostname);
-                            if (withConfig == null || withConfig.ovpnBase64.isEmpty) {
-                              final withConfigByIp = await service.getServerWithConfig(s.ip);
-                              if (withConfigByIp == null || withConfigByIp.ovpnBase64.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Config not found for this server. Try refresh or another server.')),
-                                );
-                                return;
-                              }
-                              ovpnB64 = withConfigByIp.ovpnBase64;
-                            } else {
-                              ovpnB64 = withConfig.ovpnBase64;
-                            }
+                          // Use the decoded OpenVPN config directly
+                          final ovpnConfig = s.ovpnConfig;
+                          if (ovpnConfig == null || ovpnConfig.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Config not found for this server. Try refresh or another server.')),
+                            );
+                            return;
                           }
-                          final String profile = service.buildHardenedOvpn(ovpnB64);
-                          _currentProfile = profile;
+                          _currentProfile = ovpnConfig;
                           Navigator.of(context).pop();
-                          await ctrl.connect(profile);
+                          await ctrl.connect(ovpnConfig);
                           return;
                         }
 
