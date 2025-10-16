@@ -326,6 +326,27 @@ class VpnController {
     if (!RegExp(r'^\s*ncp-ciphers\b', multiLine: true).hasMatch(optimized)) {
       optimized += '\nncp-ciphers AES-256-GCM:AES-128-GCM:AES-256-CBC\n';
     }
+    // Add legacy cipher/auth for older SoftEther/OpenVPN servers if missing
+    if (!RegExp(r'^\s*cipher\b', multiLine: true).hasMatch(optimized)) {
+      optimized += '\ncipher AES-128-CBC\n';
+    }
+    if (!RegExp(r'^\s*auth\s+\w+', multiLine: true).hasMatch(optimized)) {
+      optimized += '\nauth SHA1\n';
+    }
+    
+    // Persistence and reliability tweaks
+    if (!RegExp(r'^\s*persist-tun\b', multiLine: true).hasMatch(optimized)) {
+      optimized += '\npersist-tun\n';
+    }
+    if (!RegExp(r'^\s*persist-key\b', multiLine: true).hasMatch(optimized)) {
+      optimized += '\npersist-key\n';
+    }
+    
+    // For UDP configs, help server detect exit cleanly
+    if (RegExp(r'^\s*proto\s+udp', multiLine: true).hasMatch(optimized) &&
+        !RegExp(r'^\s*explicit-exit-notify\b', multiLine: true).hasMatch(optimized)) {
+      optimized += '\nexplicit-exit-notify 1\n';
+    }
     
     // Increase verbosity for better diagnostics during bring-up
     if (!RegExp(r'^\s*verb\s+\d+', multiLine: true).hasMatch(optimized)) {
