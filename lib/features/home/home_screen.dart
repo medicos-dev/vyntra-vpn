@@ -149,14 +149,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     
     final ctrl = ref.read(vpnControllerProvider);
     
-    // Filter OpenVPN servers with valid configs (minimum 500 chars)
+    // Debug: Check what we have
+    final openvpnServersAll = servers.where((s) => s.protocol == VpnProtocol.openvpn).toList();
+    print('🔍 Found ${openvpnServersAll.length} OpenVPN servers total');
+    
+    // Debug: Check config status
+    for (int i = 0; i < openvpnServersAll.length && i < 5; i++) {
+      final s = openvpnServersAll[i];
+      print('  Server ${i + 1}: ${s.hostname}');
+      print('    - ovpnConfig: ${s.ovpnConfig != null ? 'exists' : 'null'} (${s.ovpnConfig?.length ?? 0} chars)');
+      print('    - ovpnBase64: ${s.ovpnBase64 != null ? 'exists' : 'null'} (${s.ovpnBase64?.length ?? 0} chars)');
+    }
+    
+    // Filter OpenVPN servers with valid configs (temporarily reduced minimum)
     final List<VpnServer> openvpnServers = servers
         .where((s) => s.protocol == VpnProtocol.openvpn && 
                      s.ovpnConfig != null && 
                      s.ovpnConfig!.isNotEmpty &&
                      s.ovpnBase64 != null &&
-                     s.ovpnBase64!.length >= 500)
+                     s.ovpnBase64!.length >= 100) // Temporarily reduced from 500
         .toList();
+    
+    print('🔍 Filter results:');
+    print('  - OpenVPN servers: ${openvpnServersAll.length}');
+    print('  - With ovpnConfig: ${openvpnServersAll.where((s) => s.ovpnConfig != null).length}');
+    print('  - With ovpnBase64: ${openvpnServersAll.where((s) => s.ovpnBase64 != null).length}');
+    print('  - Base64 >= 100 chars: ${openvpnServersAll.where((s) => s.ovpnBase64 != null && s.ovpnBase64!.length >= 100).length}');
+    print('  - Final valid servers: ${openvpnServers.length}');
     
     if (openvpnServers.isEmpty) {
       print('❌ No OpenVPN servers with valid configs found');

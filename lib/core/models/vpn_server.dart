@@ -198,14 +198,20 @@ class VpnServer {
 
   // Get decoded OpenVPN config text
   String? get ovpnConfig {
-    if (ovpnBase64 == null || ovpnBase64!.isEmpty) return null;
+    if (ovpnBase64 == null || ovpnBase64!.isEmpty) {
+      print('⚠️ No Base64 data for $hostname');
+      return null;
+    }
     
     try {
       // Clean and validate Base64 string
       String cleanBase64 = ovpnBase64!.trim();
+      final originalLength = cleanBase64.length;
       
       // Remove any non-Base64 characters
       cleanBase64 = cleanBase64.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+      
+      print('🔍 $hostname: Original=${originalLength}, Clean=${cleanBase64.length}');
       
       // Check if length is valid for Base64
       if (cleanBase64.length % 4 != 0) {
@@ -224,6 +230,8 @@ class VpnServer {
       
       // Decode to UTF-8 string
       final configText = utf8.decode(decodedBytes);
+      
+      print('✅ $hostname: Decoded config length=${configText.length}');
       
       // Validate that it's actually an OpenVPN config
       if (!configText.contains('client') || !configText.contains('remote')) {
