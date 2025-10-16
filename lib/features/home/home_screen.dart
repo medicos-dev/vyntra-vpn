@@ -81,19 +81,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
-      // Prefer unified API; fallback to CSV if needed
-      final unified = await ref.read(unifiedVpnProvider).fetchAllServers();
-      List<VpnServer> list = unified;
-      if (list.isEmpty) {
-        print('ℹ️ Unified API returned 0 servers, falling back to CSV');
-        list = await VpnGateCsvService.fetchVpnGateServers();
-      }
+      // Use the new CSV service to fetch servers with decoded OpenVPN configs
+      final csvServers = await VpnGateCsvService.fetchVpnGateServers();
 
       if (mounted) {
         setState(() {
           // Sort by ping (lowest first)
-          list.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
-          servers = list;
+          csvServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
+          servers = csvServers;
           _loadingServers = false;
         });
         print('🏠 Home screen loaded ${servers.length} servers');
@@ -118,18 +113,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
-      // Force refresh unified API; fallback to CSV
-      final unified = await ref.read(unifiedVpnProvider).fetchAllServers();
-      List<VpnServer> list = unified;
-      if (list.isEmpty) {
-        print('ℹ️ Unified API returned 0 servers on retry, using CSV');
-        list = await VpnGateCsvService.fetchVpnGateServers();
-      }
+      // Force refresh by fetching fresh CSV data
+      final csvServers = await VpnGateCsvService.fetchVpnGateServers();
 
       if (mounted) {
         setState(() {
-          list.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
-          servers = list;
+          csvServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
+          servers = csvServers;
           _loadingServers = false;
         });
       }
