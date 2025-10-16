@@ -5,6 +5,7 @@ import 'session_manager.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'dart:convert'; // Added for base64 decoding
+import '../notify/notification_service.dart';
 
 enum VpnState { disconnected, connecting, connected, reconnecting, failed }
 
@@ -12,14 +13,17 @@ class VpnController {
   final OpenVPN _engine = OpenVPN();
   final SessionManager _sessionManager = SessionManager();
   final StreamController<VpnState> _stateCtrl = StreamController<VpnState>.broadcast();
+  final StreamController<int> _secondsLeftCtrl = StreamController<int>.broadcast();
   VpnState _current = VpnState.disconnected;
   String _lastError = '';
   bool _sessionStarted = false;
+  Timer? _countdown;
 
   Stream<VpnState> get state => _stateCtrl.stream;
   VpnState get current => _current;
   String get lastError => _lastError;
   SessionManager get sessionManager => _sessionManager;
+  Stream<int> get secondsLeft => _secondsLeftCtrl.stream;
 
   Future<void> init() async {
     try {
@@ -29,6 +33,7 @@ class VpnController {
         providerBundleIdentifier: null,
         localizedDescription: 'Vyntra VPN',
       );
+      await NotificationService().init();
       
       // Note: OpenVPN plugin initialization is handled by the engine.initialize() call above
       
@@ -325,6 +330,8 @@ class VpnController {
       // Hand over to session manager; report success kick-off
       timeout.cancel();
       print('⏳ Connection initiated from base64');
+      _startCountdown(seconds: 3600);
+      NotificationService().showConnected(title: 'Connected', body: 'Up: 0.0 Mbps | Down: 0.0 Mbps | 60:00');
       return true;
     } catch (e) {
       _lastError = 'Connection failed: $e';
@@ -472,10 +479,48 @@ class VpnController {
       
       await _sessionManager.endSession(); // End session when disconnecting
       _sessionStarted = false;
+      _stopCountdown();
       _set(VpnState.disconnected);
+      NotificationService().showDisconnected();
     } catch (e) {
       _lastError = 'Disconnect failed: $e';
     }
+  }
+
+  void _startCountdown({int seconds = 3600}) {
+    _countdown?.cancel();
+    int left = seconds;
+    _secondsLeftCtrl.add(left);
+    _tickNotify(left, 0.0, 0.0);
+    _countdown = Timer.periodic(const Duration(seconds: 1), (t) {
+      left -= 1;
+      if (left <= 0) {
+        _secondsLeftCtrl.add(0);
+        _tickNotify(0, 0.0, 0.0);
+        t.cancel();
+        // Auto-disconnect at 0
+        disconnect();
+        return;
+      }
+      _secondsLeftCtrl.add(left);
+      // TODO: Replace with real stats if available from plugin
+      _tickNotify(left, 0.0, 0.0);
+    });
+  }
+
+  void _tickNotify(int secondsLeft, double upMbps, double downMbps) {
+    final String mm = (secondsLeft ~/ 60).toString().padLeft(2, '0');
+    final String ss = (secondsLeft % 60).toString().padLeft(2, '0');
+    NotificationService().updateStatus(
+      title: 'Connected',
+      body: 'Up: ${upMbps.toStringAsFixed(1)} Mbps | Down: ${downMbps.toStringAsFixed(1)} Mbps | $mm:$ss',
+    );
+  }
+
+  void _stopCountdown() {
+    _countdown?.cancel();
+    _countdown = null;
+    _secondsLeftCtrl.add(0);
   }
 
   void _set(VpnState s) {
@@ -485,7 +530,9 @@ class VpnController {
 
   Future<void> dispose() async {
     _sessionManager.dispose();
+    _stopCountdown();
     await _stateCtrl.close();
+    await _secondsLeftCtrl.close();
   }
 
   Future<File> _saveOvpnToCache(String ovpnText, {String? nameHint}) async {

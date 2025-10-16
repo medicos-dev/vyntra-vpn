@@ -35,6 +35,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   late Animation<double> _pulseAnimation;
   late Animation<double> _glowAnimation;
   bool _loadingServers = false;
+  List<dynamic> _lastCandidates = <dynamic>[];
+  int _nextIdx = 0;
+
+  void _prepareCandidates(List<dynamic> list) {
+    _lastCandidates = List<dynamic>.from(list);
+    _nextIdx = 0;
+  }
+
+  String? _getNextBase64() {
+    if (_lastCandidates.isEmpty) return null;
+    if (_nextIdx >= _lastCandidates.length) _nextIdx = 0;
+    final item = _lastCandidates[_nextIdx++] as Map<String, dynamic>;
+    final b64 = (item['ovpnBase64'] ?? '') as String;
+    return b64.isNotEmpty ? b64 : null;
+  }
 
   @override
   void initState() {
@@ -61,7 +76,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       await ctrl.init();
       _watchdog = ReconnectWatchdog(
         controller: ctrl,
-        currentProfileProvider: () async => _currentProfile,
+        nextBase64Provider: () async => _getNextBase64(),
       );
       await _watchdog!.start();
       // On app start: hard-refresh unless already connected (then do a soft load)
@@ -134,116 +149,75 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   }
 
   Future<void> _connectBest() async {
+    // New strategy: fetch CSV→JSON, decode Base64, connect
+    try {
+      final json = await VpnGateCsvService.fetchAsStructuredJson();
+      final vpng = (json['services']?['vpngate']) as Map<String, dynamic>?;
+      final List<dynamic> all = (vpng?['allServers'] as List<dynamic>?) ?? <dynamic>[];
+      if (all.isEmpty) {
+        print('❌ No servers from CSV→JSON loader');
+        return;
+      }
+
+      // Rank: lower ping first, then higher speed
+      all.sort((a, b) {
+        final int ap = (a['ping'] ?? 9999) as int;
+        final int bp = (b['ping'] ?? 9999) as int;
+        if (ap != bp) return ap.compareTo(bp);
+        final int aspeed = (a['speed'] ?? 0) as int;
+        final int bspeed = (b['speed'] ?? 0) as int;
+        return bspeed.compareTo(aspeed);
+      });
+
+      print('🎯 Found ${all.length} servers from CSV');
+      _prepareCandidates(all);
+
+      // Try top 3 candidates
+      final ctrl = ref.read(vpnControllerProvider);
+      final int maxAttempts = 3;
+      for (int i = 0; i < all.length && i < maxAttempts; i++) {
+        final s = all[i] as Map<String, dynamic>;
+        final b64 = (s['ovpnBase64'] ?? '') as String;
+        final host = (s['hostName'] ?? '') as String;
+        final ctry = (s['country'] ?? '') as String;
+        final ping = (s['ping'] ?? 9999) as int;
+        final speed = (s['speed'] ?? 0) as int;
+        if (b64.isEmpty) continue;
+        print('🎯 Attempt ${i + 1}/$maxAttempts: $host ($ctry)');
+        print('📊 Server stats: ${(speed / 1e6).toStringAsFixed(1)} Mbps, ${ping}ms');
+
+        final ok = await ctrl.connectFromBase64(b64, country: ctry);
+        if (ok) {
+          print('🚀 Successfully initiated connection to $host');
+          return;
+        } else {
+          print('⚠️ Connection attempt failed for $host, trying next server...');
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No working OpenVPN config found. Please refresh and try another server.')),
+        );
+      }
+    } catch (e) {
+      print('❌ Connect Fastest failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load servers: $e')),
+        );
+      }
+    }
+
+    // Old strategy (commented for comparison):
+    /*
     if (servers.isEmpty) {
       await _loadServers();
       if (servers.isEmpty) return;
     }
-    
     final ctrl = ref.read(vpnControllerProvider);
-    
-    // Filter OpenVPN servers with valid configs
-    final List<VpnServer> allOpenvpn = servers
-        .where((s) => s.protocol == VpnProtocol.openvpn && s.ovpnConfig != null && s.ovpnConfig!.isNotEmpty)
-        .toList();
-    
-    // Prefer pure OpenVPN configs; keep SoftEther/PacketiX as fallback
-    final List<VpnServer> primary = allOpenvpn
-        .where((s) {
-          final cfg = s.ovpnConfig!;
-          final isSoftEther = cfg.contains('PacketiX') || cfg.contains('SoftEther');
-          return !isSoftEther;
-        })
-        .toList();
-    final List<VpnServer> fallback = allOpenvpn
-        .where((s) {
-          final cfg = s.ovpnConfig!;
-          return cfg.contains('PacketiX') || cfg.contains('SoftEther');
-        })
-        .toList();
-    
-    final List<VpnServer> openvpnServers = [
-      ...primary,
-      if (primary.isEmpty) ...fallback,
-    ];
-    
-    if (openvpnServers.isEmpty) {
-      print('❌ No OpenVPN servers with valid configs found');
-      return;
-    }
-    
-    // Smart server selection: prioritize low ping, then high speed
-    // Also prefer TCP configs over UDP for better reliability
-    openvpnServers.sort((a, b) {
-      // First priority: prefer TCP over UDP
-      final aIsTcp = a.ovpnConfig!.contains('proto tcp');
-      final bIsTcp = b.ovpnConfig!.contains('proto tcp');
-      if (aIsTcp != bIsTcp) return aIsTcp ? -1 : 1;
-      
-      // Second priority: lower ping (more important than speed)
-      final aPing = a.pingMs ?? 9999;
-      final bPing = b.pingMs ?? 9999;
-      if (aPing != bPing) return aPing.compareTo(bPing);
-      
-      // Third priority: higher speed
-      final aSpeed = a.speedBps ?? 0;
-      final bSpeed = b.speedBps ?? 0;
-      return bSpeed.compareTo(aSpeed);
-    });
-    
-    print('🎯 Found ${openvpnServers.length} valid OpenVPN servers');
-    print('🏆 Top 3 candidates:');
-    for (int i = 0; i < 3 && i < openvpnServers.length; i++) {
-      final server = openvpnServers[i];
-      final protocol = server.ovpnConfig!.contains('proto tcp') ? 'TCP' : 'UDP';
-      print('  ${i + 1}. ${server.hostname} (${server.country}) - ${server.pingMs}ms, ${server.speedMbps.toStringAsFixed(1)} Mbps, $protocol');
-    }
-
-    // Try up to 3 best servers with improved retry logic
-    final maxAttempts = 3;
-    for (int i = 0; i < maxAttempts && i < openvpnServers.length; i++) {
-      final candidate = openvpnServers[i];
-      try {
-        final protocol = candidate.ovpnConfig!.contains('proto tcp') ? 'TCP' : 'UDP';
-        print('🎯 Attempt ${i + 1}/$maxAttempts: ${candidate.hostname} (${candidate.country})');
-        print('📊 Server stats: ${candidate.speedMbps.toStringAsFixed(1)} Mbps, ${candidate.pingMs}ms ping, $protocol');
-        
-        // Use the decoded OpenVPN config directly
-        final ovpnConfig = candidate.ovpnConfig!;
-        
-        print('✅ Config found for ${candidate.hostname}, attempting connection...');
-        _currentProfile = ovpnConfig;
-        
-        // Wait for connection result with timeout
-        final connectionFuture = ctrl.connect(ovpnConfig);
-        final timeoutFuture = Future.delayed(const Duration(seconds: 20), () => false);
-        
-        final ok = await Future.any([connectionFuture, timeoutFuture]);
-        
-        if (ok) {
-          print('🚀 Successfully connected to ${candidate.hostname}');
-          return; // stop after first successful connection
-        } else {
-          print('⚠️ Connection attempt failed for ${candidate.hostname}, trying next server...');
-          // Do not call disconnect here; if session never started, plugin may throw NPE
-          // Let controller manage its own state transitions safely
-        }
-      } catch (e) {
-        print('❌ Failed to connect to ${candidate.hostname}: $e');
-        // Do not force disconnect on failure; avoid NPE when service not started
-      }
-      
-      // Progressive delay between attempts (longer delays for later attempts)
-      if (i < maxAttempts - 1) {
-        final delayMs = (i + 1) * 1000; // 1s, 2s, 3s delays
-        print('⏳ Waiting ${delayMs}ms before next attempt...');
-        await Future.delayed(Duration(milliseconds: delayMs));
-      }
-    }
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No working OpenVPN config found. Please refresh and try another server.')),
-      );
-    }
+    // previous selection and connect logic was here
+    */
   }
 
   Future<void> _disconnect() async {
