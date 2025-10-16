@@ -317,7 +317,8 @@ class VpnController {
       if (!RegExp(r'^\s*dev\s+tun\b', multiLine: true).hasMatch(adjusted)) {
         adjusted += '\ndev tun\n';
       }
-      // Ensure newline at end
+      // Strip any client-certificate lines to avoid prompts
+      adjusted = adjusted.replaceAll(RegExp(r'^\s*(pkcs12|cert|key)\b.*$', multiLine: true), '');
       if (!adjusted.endsWith('\n')) adjusted += '\n';
 
       // Start connection with a simple timeout guard
@@ -336,41 +337,22 @@ class VpnController {
       });
 
       try {
-        // Prefer path-based connect with auth file reference to avoid interactive prompts
-        final authFile = await _saveAuthToCache(username, password, nameHint: 'ovpn_auth');
-        // Reference auth file explicitly
-        String pathConfig = adjusted.replaceAll(RegExp(r'^\s*auth-user-pass\b.*$', multiLine: true), 'auth-user-pass ${authFile.path}');
-        final ovpnFile = await _saveOvpnToCache(pathConfig, nameHint: 'profile');
-        print('📁 Saved OVPN to: ${ovpnFile.path}');
-        final res = await (_engine as dynamic).connect(
-          ovpnFile.path,
+        final resInline = await (_engine as dynamic).connect(
+          adjusted,
           'Vyntra',
           certIsRequired: false,
           username: username,
           password: password,
         );
         _sessionStarted = true;
-        print('📊 Connection result (path): $res');
-      } catch (e) {
-        print('⚠️ Path connect failed, trying inline: $e');
-        try {
-          final resInline = await (_engine as dynamic).connect(
-            adjusted,
-            'Vyntra',
-            certIsRequired: false,
-            username: username,
-            password: password,
-          );
-          _sessionStarted = true;
-          print('📊 Connection result (inline): $resInline');
-        } catch (e2) {
-          timeout.cancel();
-          print('❌ Connect failed: $e2');
-          _lastError = 'Connect failed: $e2';
-          _set(VpnState.failed);
-          if (!done.isCompleted) done.complete(false);
-          return false;
-        }
+        print('📊 Connection result (inline): $resInline');
+      } catch (e2) {
+        timeout.cancel();
+        print('❌ Connect failed: $e2');
+        _lastError = 'Connect failed: $e2';
+        _set(VpnState.failed);
+        if (!done.isCompleted) done.complete(false);
+        return false;
       }
 
       // Hand over to session manager; report success kick-off

@@ -9,6 +9,8 @@ import '../../core/vpn/vpn_controller.dart';
 import '../servers/server_list_screen.dart';
 import '../settings/settings_screen.dart';
 import 'dart:convert';
+import 'package:vyntra_app_aiks/core/network/apis.dart';
+import 'package:vyntra_app_aiks/core/models/vpndart.dart';
 
 final vpngateProvider = Provider((ref) => VpnGateService());
 final unifiedVpnProvider = Provider((ref) => UnifiedVpnService());
@@ -48,7 +50,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     if (_lastCandidates.isEmpty) return null;
     if (_nextIdx >= _lastCandidates.length) _nextIdx = 0;
     final item = _lastCandidates[_nextIdx++] as Map<String, dynamic>;
-    final b64 = (item['ovpnBase64'] ?? '') as String;
+    final b64 = (item['OpenVPN_ConfigData_Base64'] ?? '') as String;
     return b64.isNotEmpty ? b64 : null;
   }
 
@@ -97,23 +99,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
-      // Use VPNGate CSV → JSON loader as the data source
-      final csvServers = await VpnGateCsvService.fetchVpnGateServers();
-
+      final List<AllServers> fetched = await APIs.getVPNServers();
       if (mounted) {
         setState(() {
-          // Sort by ping (lowest first)
-          csvServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
-          servers = csvServers;
+          fetched.sort((a, b) => (a.Ping ?? 9999).compareTo(b.Ping ?? 9999));
+          // Map to existing VpnServer shape only where needed; keep original keys for connect path
+          servers = fetched.map((s) => VpnServer(
+            id: s.HostName ?? '',
+            name: s.HostName ?? '',
+            hostname: s.HostName ?? '',
+            ip: s.IP ?? '',
+            country: s.CountryLong ?? '',
+            protocol: VpnProtocol.openvpn,
+            port: 0,
+            speedBps: s.Speed ?? 0,
+            pingMs: s.Ping ?? 9999,
+            ovpnBase64: s.OpenVPN_ConfigData_Base64 ?? '',
+          )).toList();
           _loadingServers = false;
         });
-        print('🏠 Home screen loaded ${servers.length} servers (vpngate csv)');
+        print('🏠 Home screen loaded ${servers.length} servers (vpndart/APIs)');
         if (servers.isNotEmpty) {
           print('🚀 Fastest server: ${servers.first.hostname} (${servers.first.country}) - ${servers.first.pingMs}ms');
         }
       }
     } catch (e) {
-      print('Error loading servers (vpngate csv): $e');
+      print('Error loading servers (APIs): $e');
       if (mounted) {
         setState(() {
           _loadingServers = false;
@@ -129,18 +140,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
-      // Force refresh via VPNGate CSV service
-      final csvServers = await VpnGateCsvService.fetchVpnGateServers();
-
+      final List<AllServers> fetched = await APIs.getVPNServers();
       if (mounted) {
         setState(() {
-          csvServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
-          servers = csvServers;
+          fetched.sort((a, b) => (a.Ping ?? 9999).compareTo(b.Ping ?? 9999));
+          servers = fetched.map((s) => VpnServer(
+            id: s.HostName ?? '',
+            name: s.HostName ?? '',
+            hostname: s.HostName ?? '',
+            ip: s.IP ?? '',
+            country: s.CountryLong ?? '',
+            protocol: VpnProtocol.openvpn,
+            port: 0,
+            speedBps: s.Speed ?? 0,
+            pingMs: s.Ping ?? 9999,
+            ovpnBase64: s.OpenVPN_ConfigData_Base64 ?? '',
+          )).toList();
           _loadingServers = false;
         });
       }
     } catch (e) {
-      print('Error retrying server load (vpngate csv): $e');
+      print('Error retrying server load (APIs): $e');
       if (mounted) {
         setState(() {
           _loadingServers = false;
@@ -156,10 +176,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       );
     }
     try {
-      // If we already have servers loaded from CSV, use them; else fetch
-      List<VpnServer> pool = servers;
-      if (pool.isEmpty) {
-        pool = await VpnGateCsvService.fetchVpnGateServers();
+      List<AllServers> pool = [];
+      if (servers.isEmpty) {
+        pool = await APIs.getVPNServers();
+      } else {
+        // Convert existing VpnServer list back to AllServers shape minimally
+        pool = servers.map((s) => AllServers(
+          HostName: s.hostname,
+          IP: s.ip,
+          CountryLong: s.country,
+          Score: s.score,
+          Ping: s.pingMs,
+          Speed: s.speedBps,
+          HasConfig: (s.ovpnBase64 != null && s.ovpnBase64!.isNotEmpty),
+          OpenVPN_ConfigData_Base64: s.ovpnBase64,
+        )).toList();
       }
       if (pool.isEmpty) {
         if (mounted) {
@@ -170,27 +201,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         return;
       }
 
-      // Rank: lower ping first, then higher speed
       pool.sort((a, b) {
-        final int ap = (a.pingMs ?? 9999);
-        final int bp = (b.pingMs ?? 9999);
+        final int ap = (a.Ping ?? 9999);
+        final int bp = (b.Ping ?? 9999);
         if (ap != bp) return ap.compareTo(bp);
-        final int aspeed = (a.speedBps ?? 0);
-        final int bspeed = (b.speedBps ?? 0);
+        final int aspeed = (a.Speed ?? 0);
+        final int bspeed = (b.Speed ?? 0);
         return bspeed.compareTo(aspeed);
       });
 
-      // Candidate queue for watchdog auto-failover
+      // Build candidates with original keys for watchdog
       final all = pool
-          .where((s) => (s.ovpnBase64 != null && s.ovpnBase64!.isNotEmpty) || (s.ovpnConfig != null && s.ovpnConfig!.isNotEmpty))
+          .where((s) => (s.OpenVPN_ConfigData_Base64 != null && s.OpenVPN_ConfigData_Base64!.isNotEmpty))
           .map((s) => {
-                'hostName': s.hostname,
-                'country': s.country,
-                'ping': s.pingMs ?? 9999,
-                'speed': s.speedBps ?? 0,
-                'ovpnBase64': (s.ovpnBase64 != null && s.ovpnBase64!.isNotEmpty)
-                    ? s.ovpnBase64!
-                    : base64.encode(utf8.encode(s.ovpnConfig!)),
+                'HostName': s.HostName ?? '',
+                'CountryLong': s.CountryLong ?? '',
+                'Ping': s.Ping ?? 9999,
+                'Speed': s.Speed ?? 0,
+                'OpenVPN_ConfigData_Base64': s.OpenVPN_ConfigData_Base64 ?? '',
               })
           .toList();
       if (all.isEmpty) {
@@ -206,11 +234,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       // First candidate only
       final ctrl = ref.read(vpnControllerProvider);
       final first = all.first;
-      final b64 = first['ovpnBase64'] as String;
-      print('🎯 Attempt 1/1: ${first['hostName']} (${first['country']})');
-      print('📊 Server stats: ${(((first['speed'] as int) / 1e6)).toStringAsFixed(1)} Mbps, ${(first['ping'] as int)}ms');
+      final b64 = first['OpenVPN_ConfigData_Base64'] as String;
+      print('🎯 Attempt 1/1: ${first['HostName']} (${first['CountryLong']})');
+      print('📊 Server stats: ${(((first['Speed'] as int) / 1e6)).toStringAsFixed(1)} Mbps, ${(first['Ping'] as int)}ms');
 
-      final ok = await ctrl.connectFromBase64(b64, country: (first['country'] as String?) ?? '');
+      final ok = await ctrl.connectFromBase64(b64, country: (first['CountryLong'] as String?) ?? '');
       if (!ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Connection failed. Try another server.')),
