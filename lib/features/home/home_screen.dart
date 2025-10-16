@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/vpngate_service.dart';
+import '../../core/network/vpngate_csv_service.dart';
 import '../../core/network/unified_vpn_service.dart';
 import '../../core/models/vpn_server.dart';
 import '../../core/vpn/reconnect_watchdog.dart';
@@ -80,18 +81,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
-      // Clear cache to force fresh fetch
-      final vpnService = ref.read(unifiedVpnProvider);
-      await vpnService.clearCache();
-      
-      // Use the unified service to fetch servers
-      final fetchedServers = await vpnService.fetchAllServers();
+      // Use the new CSV service to fetch servers with decoded OpenVPN configs
+      final csvServers = await VpnGateCsvService.fetchVpnGateServers();
 
       if (mounted) {
         setState(() {
           // Sort by ping (lowest first)
-          fetchedServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
-          servers = fetchedServers;
+          csvServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
+          servers = csvServers;
           _loadingServers = false;
         });
         print('🏠 Home screen loaded ${servers.length} servers');
@@ -116,23 +113,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
-      // Force refresh by clearing cache and fetching fresh data from unified service
-      final vpnService = ref.read(unifiedVpnProvider);
-      await vpnService.clearCache();
-      
-      final fetchedServers = await vpnService.fetchAllServers();
+      // Force refresh by fetching fresh CSV data
+      final csvServers = await VpnGateCsvService.fetchVpnGateServers();
 
       if (mounted) {
         setState(() {
-          // Sort by ping (lowest first)
-          fetchedServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
-          servers = fetchedServers;
+          csvServers.sort((a, b) => (a.pingMs ?? 9999).compareTo(b.pingMs ?? 9999));
+          servers = csvServers;
           _loadingServers = false;
         });
-        print('🔄 Refresh completed: ${servers.length} servers loaded');
-        if (servers.isNotEmpty) {
-          print('🚀 Fastest server after refresh: ${servers.first.hostname} (${servers.first.country}) - ${servers.first.pingMs}ms');
-        }
       }
     } catch (e) {
       print('Error retrying server load: $e');
@@ -140,52 +129,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         setState(() {
           _loadingServers = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to refresh servers: $e')),
-        );
       }
     }
   }
 
   Future<void> _connectBest() async {
-    // Force refresh cache to get latest servers
-    print('🔄 Forcing fresh server fetch...');
-    await _loadServers();
-    
     if (servers.isEmpty) {
-      print('❌ No servers available after refresh');
-      return;
+      await _loadServers();
+      if (servers.isEmpty) return;
     }
     
     final ctrl = ref.read(vpnControllerProvider);
     
-    // Debug: Check what we have
-    final openvpnServersAll = servers.where((s) => s.protocol == VpnProtocol.openvpn).toList();
-    print('🔍 Found ${openvpnServersAll.length} OpenVPN servers total');
-    
-    // Debug: Check config status
-    for (int i = 0; i < openvpnServersAll.length && i < 5; i++) {
-      final s = openvpnServersAll[i];
-      print('  Server ${i + 1}: ${s.hostname}');
-      print('    - ovpnConfig: ${s.ovpnConfig != null ? 'exists' : 'null'} (${s.ovpnConfig?.length ?? 0} chars)');
-      print('    - ovpnBase64: ${s.ovpnBase64 != null ? 'exists' : 'null'} (${s.ovpnBase64?.length ?? 0} chars)');
-    }
-    
-    // Filter OpenVPN servers with valid configs (temporarily reduced minimum)
+    // Filter OpenVPN servers with valid configs
     final List<VpnServer> openvpnServers = servers
-        .where((s) => s.protocol == VpnProtocol.openvpn && 
-                     s.ovpnConfig != null && 
-                     s.ovpnConfig!.isNotEmpty &&
-                     s.ovpnBase64 != null &&
-                     s.ovpnBase64!.length >= 100) // Temporarily reduced from 500
+        .where((s) => s.protocol == VpnProtocol.openvpn && s.ovpnConfig != null && s.ovpnConfig!.isNotEmpty)
         .toList();
-    
-    print('🔍 Filter results:');
-    print('  - OpenVPN servers: ${openvpnServersAll.length}');
-    print('  - With ovpnConfig: ${openvpnServersAll.where((s) => s.ovpnConfig != null).length}');
-    print('  - With ovpnBase64: ${openvpnServersAll.where((s) => s.ovpnBase64 != null).length}');
-    print('  - Base64 >= 100 chars: ${openvpnServersAll.where((s) => s.ovpnBase64 != null && s.ovpnBase64!.length >= 100).length}');
-    print('  - Final valid servers: ${openvpnServers.length}');
     
     if (openvpnServers.isEmpty) {
       print('❌ No OpenVPN servers with valid configs found');
@@ -234,9 +193,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         print('✅ Config found for ${candidate.hostname}, attempting connection...');
         _currentProfile = ovpnConfig;
         
-        // Wait for connection result with timeout (increased to 35s to match VPN controller)
+        // Wait for connection result with timeout
         final connectionFuture = ctrl.connect(ovpnConfig);
-        final timeoutFuture = Future.delayed(const Duration(seconds: 35), () => false);
+        final timeoutFuture = Future.delayed(const Duration(seconds: 20), () => false);
         
         final ok = await Future.any([connectionFuture, timeoutFuture]);
         

@@ -106,23 +106,6 @@ class VpnController {
         print('  ... (${lines.length - 20} more lines)');
       }
       
-      // Debug: Validate essential config elements
-      print('🔍 Config validation:');
-      print('  - Contains "client": ${configToUse.contains('client')}');
-      print('  - Contains "remote": ${configToUse.contains('remote')}');
-      print('  - Contains "<ca>": ${configToUse.contains('<ca>')}');
-      print('  - Contains "dev tun": ${configToUse.contains('dev tun')}');
-      print('  - Contains "proto tcp": ${configToUse.contains('proto tcp')}');
-      print('  - Contains "proto udp": ${configToUse.contains('proto udp')}');
-      
-      // Find remote line
-      final remoteLines = lines.where((line) => line.startsWith('remote ')).toList();
-      if (remoteLines.isNotEmpty) {
-        print('  - Remote line: ${remoteLines.first}');
-      } else {
-        print('  - ❌ No remote line found!');
-      }
-      
       // Additional validation for common issues
       if (!configToUse.contains('remote ')) {
         _lastError = 'Invalid OpenVPN configuration - no remote server specified';
@@ -146,10 +129,10 @@ class VpnController {
       final Completer<bool> connectionCompleter = Completer<bool>();
       Timer? connectionTimeout;
       
-      // Set up timeout (increased to 30s for VPNGate servers)
-      connectionTimeout = Timer(const Duration(seconds: 30), () {
+      // Set up timeout
+      connectionTimeout = Timer(const Duration(seconds: 15), () {
         if (!connectionCompleter.isCompleted) {
-          print('⏰ Connection timeout after 30 seconds');
+          print('⏰ Connection timeout after 15 seconds');
           _lastError = 'Connection timeout - server may be unreachable';
           _set(VpnState.failed);
           connectionCompleter.complete(false);
@@ -165,14 +148,12 @@ class VpnController {
         String username = '';
         String password = '';
         
-        // For VPNGate servers, always use empty credentials
-        // Only use vpn/vpn for SoftEther/PacketiX servers that explicitly require auth
-        if (requiresAuth && !configToUse.contains('vpngate') && !configToUse.contains('VPNGate')) {
+        if (requiresAuth) {
           username = 'vpn';
           password = 'vpn';
           print('🔑 Using authentication credentials: $username/$password');
         } else {
-          print('🔓 Using empty credentials (VPNGate or no auth required)');
+          print('🔓 No authentication required');
         }
         
         // Use the correct API call with appropriate credentials

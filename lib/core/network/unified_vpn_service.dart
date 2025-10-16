@@ -25,18 +25,6 @@ class UnifiedVpnService {
   // Cache duration: 1 hour
   static const Duration _cacheDuration = Duration(hours: 1);
 
-  // Clear cache to force fresh fetch
-  Future<void> clearCache() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_cacheKey);
-      await prefs.remove(_cacheTimestampKey);
-      print('🔄 Unified VPN cache cleared');
-    } catch (e) {
-      print('⚠️ Failed to clear cache: $e');
-    }
-  }
-
   Future<List<VpnServer>> fetchAllServers() async {
     try {
       // Try to get cached data first
@@ -107,25 +95,9 @@ class UnifiedVpnService {
             ? vpngateData['allServers'] as List
             : <dynamic>[]);
         
-        print('🔍 VPNGate servers count: ${vpngateServers.length}');
-        if (vpngateServers.isNotEmpty) {
-          final firstServer = vpngateServers.first;
-          if (firstServer is Map<String, dynamic>) {
-            print('🔍 First server keys: ${firstServer.keys.toList()}');
-            print('🔍 First server ovpnBase64 length: ${firstServer['ovpnBase64']?.toString().length ?? 'null'}');
-          }
-        }
-        
         for (final serverJson in vpngateServers) {
           try {
             final Map<String, dynamic> m = serverJson is Map<String, dynamic> ? serverJson : <String, dynamic>{};
-            final base64Data = (m['ovpnBase64'] ?? '').toString();
-            
-            // Debug first few servers
-            if (allServers.length < 3) {
-              print('🔍 Server ${allServers.length + 1}: ${m['hostName']} - Base64 length: ${base64Data.length}');
-            }
-            
             final server = VpnServer.fromVpnGate(
               hostName: (m['hostName'] ?? '').toString(),
               ip: (m['ip'] ?? '').toString(),
@@ -133,11 +105,11 @@ class UnifiedVpnService {
               score: (m['score'] is num ? (m['score'] as num).toInt() : 0),
               pingMs: (m['ping'] is num ? (m['ping'] as num).toInt() : 9999),
               speedBps: (m['speed'] is num ? (m['speed'] as num).toInt() : 0),
-              ovpnBase64: base64Data, // Use actual Base64 data from API
+              ovpnBase64: '', // Will be fetched separately when needed
             );
             allServers.add(server);
           } catch (e) {
-            print('⚠️ Failed to create server: $e');
+            // Skip invalid servers
           }
         }
       }
@@ -333,6 +305,16 @@ class UnifiedVpnService {
     );
   }
 
+  // Method to clear cache
+  Future<void> clearCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_cacheKey);
+      await prefs.remove(_cacheTimestampKey);
+    } catch (e) {
+      // Ignore errors
+    }
+  }
 
   // Method to force refresh (bypass cache)
   Future<List<VpnServer>> forceRefresh() async {
