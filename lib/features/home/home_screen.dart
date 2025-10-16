@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// import '../../core/network/vpngate_service.dart';
+import '../../core/network/vpngate_service.dart';
 import '../../core/network/unified_vpn_service.dart';
 import '../../core/models/vpn_server.dart';
 import '../../core/vpn/reconnect_watchdog.dart';
@@ -8,7 +8,7 @@ import '../../core/vpn/vpn_controller.dart';
 import '../servers/server_list_screen.dart';
 import '../settings/settings_screen.dart';
 
-// final vpngateProvider = Provider((ref) => VpnGateService());
+final vpngateProvider = Provider((ref) => VpnGateService());
 final unifiedVpnProvider = Provider((ref) => UnifiedVpnService());
 final vpnControllerProvider = Provider((ref) => VpnController());
 
@@ -171,20 +171,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       print('    - ovpnBase64: ${s.ovpnBase64 != null ? 'exists' : 'null'} (${s.ovpnBase64?.length ?? 0} chars)');
     }
     
-    // Filter OpenVPN servers with valid configs (minimum 500 chars)
+    // Filter OpenVPN servers with valid configs (temporarily reduced minimum)
     final List<VpnServer> openvpnServers = servers
         .where((s) => s.protocol == VpnProtocol.openvpn && 
                      s.ovpnConfig != null && 
                      s.ovpnConfig!.isNotEmpty &&
                      s.ovpnBase64 != null &&
-                     s.ovpnBase64!.length >= 500)
+                     s.ovpnBase64!.length >= 100) // Temporarily reduced from 500
         .toList();
     
     print('🔍 Filter results:');
     print('  - OpenVPN servers: ${openvpnServersAll.length}');
     print('  - With ovpnConfig: ${openvpnServersAll.where((s) => s.ovpnConfig != null).length}');
     print('  - With ovpnBase64: ${openvpnServersAll.where((s) => s.ovpnBase64 != null).length}');
-    print('  - Base64 >= 500 chars: ${openvpnServersAll.where((s) => s.ovpnBase64 != null && s.ovpnBase64!.length >= 500).length}');
+    print('  - Base64 >= 100 chars: ${openvpnServersAll.where((s) => s.ovpnBase64 != null && s.ovpnBase64!.length >= 100).length}');
     print('  - Final valid servers: ${openvpnServers.length}');
     
     if (openvpnServers.isEmpty) {
@@ -229,27 +229,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         print('📊 Server stats: ${candidate.speedMbps.toStringAsFixed(1)} Mbps, ${candidate.pingMs}ms ping, $protocol');
         
         // Use the decoded OpenVPN config directly
-        String? ovpnConfig = candidate.ovpnConfig;
-        
-        // If missing, fetch on-demand via unified per-host endpoint
-        if (ovpnConfig == null || ovpnConfig.isEmpty) {
-          print('🔎 Fetching per-host config for ${candidate.hostname}...');
-          final vpnService = ref.read(unifiedVpnProvider);
-          ovpnConfig = await vpnService.fetchOvpnByHost(candidate.hostname);
-          if (ovpnConfig == null || ovpnConfig.isEmpty) {
-            print('❌ Config not found for ${candidate.hostname}, skipping');
-            continue;
-          }
-        }
+        final ovpnConfig = candidate.ovpnConfig!;
         
         print('✅ Config found for ${candidate.hostname}, attempting connection...');
         _currentProfile = ovpnConfig;
         
         // Wait for connection result with timeout (increased to 35s to match VPN controller)
-        final ok = await Future.any([
-          ctrl.connect(ovpnConfig),
-          Future.delayed(const Duration(seconds: 35), () => false),
-        ]);
+        final connectionFuture = ctrl.connect(ovpnConfig);
+        final timeoutFuture = Future.delayed(const Duration(seconds: 35), () => false);
+        
+        final ok = await Future.any([connectionFuture, timeoutFuture]);
         
         if (ok) {
           print('🚀 Successfully connected to ${candidate.hostname}');
