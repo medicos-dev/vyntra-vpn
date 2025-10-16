@@ -171,20 +171,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       print('    - ovpnBase64: ${s.ovpnBase64 != null ? 'exists' : 'null'} (${s.ovpnBase64?.length ?? 0} chars)');
     }
     
-    // Filter OpenVPN servers with valid configs (temporarily reduced minimum)
+    // Filter OpenVPN servers with valid configs (minimum 500 chars)
     final List<VpnServer> openvpnServers = servers
         .where((s) => s.protocol == VpnProtocol.openvpn && 
                      s.ovpnConfig != null && 
                      s.ovpnConfig!.isNotEmpty &&
                      s.ovpnBase64 != null &&
-                     s.ovpnBase64!.length >= 100) // Temporarily reduced from 500
+                     s.ovpnBase64!.length >= 500)
         .toList();
     
     print('🔍 Filter results:');
     print('  - OpenVPN servers: ${openvpnServersAll.length}');
     print('  - With ovpnConfig: ${openvpnServersAll.where((s) => s.ovpnConfig != null).length}');
     print('  - With ovpnBase64: ${openvpnServersAll.where((s) => s.ovpnBase64 != null).length}');
-    print('  - Base64 >= 100 chars: ${openvpnServersAll.where((s) => s.ovpnBase64 != null && s.ovpnBase64!.length >= 100).length}');
+    print('  - Base64 >= 500 chars: ${openvpnServersAll.where((s) => s.ovpnBase64 != null && s.ovpnBase64!.length >= 500).length}');
     print('  - Final valid servers: ${openvpnServers.length}');
     
     if (openvpnServers.isEmpty) {

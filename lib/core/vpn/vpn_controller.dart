@@ -94,7 +94,7 @@ class VpnController {
       
       // Optimize OpenVPN config for better compatibility
       String configToUse = _optimizeOpenVpnConfig(ovpnContent);
-      print('🌐 Using protocol: ${configToUse.contains('proto tcp') ? 'TCP' : 'UDP'}');
+      print('🌐 Using protocol: ${configToUse.contains('proto tcp') ? 'TCP' : (configToUse.contains('proto udp') ? 'UDP' : 'UNKNOWN')}');
       
       // Debug: Print the optimized config for troubleshooting
       print('🔍 Optimized config preview:');
@@ -108,35 +108,23 @@ class VpnController {
       
       // Debug: Validate essential config elements
       print('🔍 Config validation:');
-      print('  - Contains "client": ${configToUse.contains('client')}');
-      print('  - Contains "remote": ${configToUse.contains('remote')}');
-      print('  - Contains "<ca>": ${configToUse.contains('<ca>')}');
-      print('  - Contains "dev tun": ${configToUse.contains('dev tun')}');
-      print('  - Contains "proto tcp": ${configToUse.contains('proto tcp')}');
-      print('  - Contains "proto udp": ${configToUse.contains('proto udp')}');
+      final hasClient = configToUse.contains('client');
+      final hasRemote = configToUse.contains('remote');
+      final hasCA = configToUse.contains('<ca>') && configToUse.contains('</ca>');
+      final hasDevTun = configToUse.contains('dev tun');
+      final hasProto = configToUse.contains('proto ');
+      print('  - Contains "client": $hasClient');
+      print('  - Contains "remote": $hasRemote');
+      print('  - Contains "<ca>": $hasCA');
+      print('  - Contains "dev tun": $hasDevTun');
+      print('  - Contains proto: $hasProto');
       
-      // Find remote line
-      final remoteLines = lines.where((line) => line.startsWith('remote ')).toList();
-      if (remoteLines.isNotEmpty) {
-        print('  - Remote line: ${remoteLines.first}');
-      } else {
-        print('  - ❌ No remote line found!');
-      }
-      
-      // Additional validation for common issues
-      if (!configToUse.contains('remote ')) {
-        _lastError = 'Invalid OpenVPN configuration - no remote server specified';
-        print('❌ Invalid OpenVPN config - no remote server specified');
+      // Strict validation: must have client, remote and inline CA
+      if (!hasClient || !hasRemote || !hasCA) {
+        _lastError = 'Invalid OpenVPN configuration - missing required directives (client/remote/CA)';
+        print('❌ Invalid OpenVPN config - missing required directives');
         _set(VpnState.failed);
         return false;
-      }
-      
-      // Check for required directives
-      final requiredDirectives = ['client', 'remote', 'dev', 'proto'];
-      for (final directive in requiredDirectives) {
-        if (!configToUse.contains('$directive ')) {
-          print('⚠️ Missing directive: $directive');
-        }
       }
       
       // Try the correct API call - the plugin expects specific parameters
