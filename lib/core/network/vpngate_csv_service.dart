@@ -135,22 +135,42 @@ class VpnGateCsvService {
     final csvRows = csvConverter.convert(filtered.join('\n'));
     // First row is header
     final header = (csvRows.isNotEmpty) ? (csvRows.first as List<dynamic>).map((e) => e.toString()).toList() : <String>[];
+    // Build a lowercase trimmed index map
     final idx = <String, int>{};
     for (int i = 0; i < header.length; i++) {
-      idx[header[i].trim()] = i;
+      idx[header[i].trim().toLowerCase()] = i;
     }
+
+    int _col(String name) => idx[name.toLowerCase()] ?? -1;
+
+    // Validate required columns exist
+    final requiredCols = <String>['hostname','ip','countrylong','score','ping','speed','openvpn_configdata_base64'];
+    final missing = requiredCols.where((c) => _col(c) < 0).toList();
+    if (missing.isNotEmpty) {
+      throw Exception('CSV missing columns: ${missing.join(', ')}');
+    }
+
     final allServers = <Map<String, dynamic>>[];
 
     for (int r = 1; r < csvRows.length; r++) {
       final row = csvRows[r] as List<dynamic>;
       if (row.length < header.length) continue;
-      final host = row[idx['HostName'] ?? -1]?.toString() ?? '';
-      final ip = row[idx['IP'] ?? -1]?.toString() ?? '';
-      final country = row[idx['CountryLong'] ?? -1]?.toString() ?? '';
-      final score = int.tryParse(row[idx['Score'] ?? -1]?.toString() ?? '') ?? 0;
-      final ping = int.tryParse(row[idx['Ping'] ?? -1]?.toString() ?? '') ?? 9999;
-      final speed = int.tryParse(row[idx['Speed'] ?? -1]?.toString() ?? '') ?? 0;
-      final b64 = row[idx['OpenVPN_ConfigData_Base64'] ?? -1]?.toString() ?? '';
+      final int hostI = _col('hostname');
+      final int ipI = _col('ip');
+      final int countryI = _col('countrylong');
+      final int scoreI = _col('score');
+      final int pingI = _col('ping');
+      final int speedI = _col('speed');
+      final int b64I = _col('openvpn_configdata_base64');
+      if ([hostI, ipI, countryI, scoreI, pingI, speedI, b64I].any((i) => i < 0)) continue;
+
+      final host = row[hostI]?.toString() ?? '';
+      final ip = row[ipI]?.toString() ?? '';
+      final country = row[countryI]?.toString() ?? '';
+      final score = int.tryParse(row[scoreI]?.toString() ?? '') ?? 0;
+      final ping = int.tryParse(row[pingI]?.toString() ?? '') ?? 9999;
+      final speed = int.tryParse(row[speedI]?.toString() ?? '') ?? 0;
+      final b64 = row[b64I]?.toString() ?? '';
       final hasConfig = b64.isNotEmpty;
       allServers.add({
         'hostName': host,
