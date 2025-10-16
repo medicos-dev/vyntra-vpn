@@ -144,6 +144,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     // Filter OpenVPN servers with valid configs
     final List<VpnServer> openvpnServers = servers
         .where((s) => s.protocol == VpnProtocol.openvpn && s.ovpnConfig != null && s.ovpnConfig!.isNotEmpty)
+        // Exclude SoftEther/PacketiX generated configs which often fail in standard OpenVPN
+        .where((s) {
+          final cfg = s.ovpnConfig!;
+          final isSoftEther = cfg.contains('PacketiX') || cfg.contains('SoftEther');
+          return !isSoftEther;
+        })
         .toList();
     
     if (openvpnServers.isEmpty) {
@@ -204,13 +210,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           return; // stop after first successful connection
         } else {
           print('⚠️ Connection attempt failed for ${candidate.hostname}, trying next server...');
-          // Disconnect any partial connection before trying next server
-          await ctrl.disconnect();
+          // Do not call disconnect here; if session never started, plugin may throw NPE
+          // Let controller manage its own state transitions safely
         }
       } catch (e) {
         print('❌ Failed to connect to ${candidate.hostname}: $e');
-        // Disconnect any partial connection before trying next server
-        await ctrl.disconnect();
+        // Do not force disconnect on failure; avoid NPE when service not started
       }
       
       // Progressive delay between attempts (longer delays for later attempts)

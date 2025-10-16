@@ -11,6 +11,7 @@ class VpnController {
   final StreamController<VpnState> _stateCtrl = StreamController<VpnState>.broadcast();
   VpnState _current = VpnState.disconnected;
   String _lastError = '';
+  bool _sessionStarted = false;
 
   Stream<VpnState> get state => _stateCtrl.stream;
   VpnState get current => _current;
@@ -129,6 +130,17 @@ class VpnController {
       configToUse = configToUse.trimRight();
       if (!configToUse.endsWith('\n')) configToUse += '\n';
       
+      // Ensure platform is prepared (VPN permission/binding) before connecting
+      try {
+        final prep = (_engine as dynamic).prepare;
+        if (prep != null) {
+          final res = prep();
+          if (res is Future) {
+            await res;
+          }
+        }
+      } catch (_) {}
+      
       // Set up a proper timeout mechanism
       final Completer<bool> connectionCompleter = Completer<bool>();
       Timer? connectionTimeout;
@@ -171,6 +183,7 @@ class VpnController {
             username: username,
             password: password,
           );
+          _sessionStarted = true;
           print('📊 Connection result: $result');
         } catch (e) {
           print('❌ Connection failed: $e');
@@ -265,9 +278,15 @@ class VpnController {
       optimized += '\ndev tun\n';
     }
     
-    // Add connection timeout settings (shorter for faster failure detection)
-    if (!optimized.contains('connect-timeout')) {
-      optimized += '\nconnect-timeout 8\n';
+    // Remove potentially unsupported/legacy timeout directives that can terminate OpenVPN
+    // (connect-timeout, handshake-window, server-poll-timeout)
+    optimized = optimized.replaceAll(RegExp(r'^\s*connect-timeout\b.*$', multiLine: true), '');
+    optimized = optimized.replaceAll(RegExp(r'^\s*handshake-window\b.*$', multiLine: true), '');
+    optimized = optimized.replaceAll(RegExp(r'^\s*server-poll-timeout\b.*$', multiLine: true), '');
+    
+    // Keep TLS timeout (supported) if user didn't specify
+    if (!RegExp(r'^\s*tls-timeout\b', multiLine: true).hasMatch(optimized)) {
+      optimized += '\ntls-timeout 8\n';
     }
     
     // Add keepalive settings for better stability
@@ -276,32 +295,17 @@ class VpnController {
     }
     
     // Add connection retry settings
-    if (!optimized.contains('connect-retry')) {
-      optimized += '\nconnect-retry 1\n';
+    if (!RegExp(r'^\s*connect-retry\b', multiLine: true).hasMatch(optimized)) {
+      optimized += '\nconnect-retry 2\n';
     }
     
     // Add connection retry max settings
-    if (!optimized.contains('connect-retry-max')) {
-      optimized += '\nconnect-retry-max 2\n';
-    }
-    
-    // Add handshake timeout (shorter for faster failure detection)
-    if (!optimized.contains('handshake-window')) {
-      optimized += '\nhandshake-window 8\n';
-    }
-    
-    // Add server poll timeout
-    if (!optimized.contains('server-poll-timeout')) {
-      optimized += '\nserver-poll-timeout 8\n';
-    }
-    
-    // Add TLS timeout for faster failure detection
-    if (!optimized.contains('tls-timeout')) {
-      optimized += '\ntls-timeout 8\n';
+    if (!RegExp(r'^\s*connect-retry-max\b', multiLine: true).hasMatch(optimized)) {
+      optimized += '\nconnect-retry-max 3\n';
     }
     
     // Add connection retry delay
-    if (!optimized.contains('connect-retry-delay')) {
+    if (!RegExp(r'^\s*connect-retry-delay\b', multiLine: true).hasMatch(optimized)) {
       optimized += '\nconnect-retry-delay 2\n';
     }
     
@@ -319,20 +323,8 @@ class VpnController {
       optimized += '\nauth-nocache\n';
     }
     
-    // Cipher compatibility (OpenVPN 2.5+ prefers data-ciphers)
-    if (!RegExp(r'^\s*data-ciphers\b', multiLine: true).hasMatch(optimized)) {
-      optimized += '\ndata-ciphers AES-256-GCM:AES-128-GCM:AES-256-CBC\n';
-    }
-    if (!RegExp(r'^\s*ncp-ciphers\b', multiLine: true).hasMatch(optimized)) {
-      optimized += '\nncp-ciphers AES-256-GCM:AES-128-GCM:AES-256-CBC\n';
-    }
-    // Add legacy cipher/auth for older SoftEther/OpenVPN servers if missing
-    if (!RegExp(r'^\s*cipher\b', multiLine: true).hasMatch(optimized)) {
-      optimized += '\ncipher AES-128-CBC\n';
-    }
-    if (!RegExp(r'^\s*auth\s+\w+', multiLine: true).hasMatch(optimized)) {
-      optimized += '\nauth SHA1\n';
-    }
+    // Do not inject cipher lists; honor ciphers from the original config
+    // (data-ciphers, ncp-ciphers, cipher, auth) will be used only if present in config
     
     // Persistence and reliability tweaks
     if (!RegExp(r'^\s*persist-tun\b', multiLine: true).hasMatch(optimized)) {
@@ -364,8 +356,9 @@ class VpnController {
 
   Future<void> disconnect() async {
     try {
-      // Avoid calling into plugin if already disconnected
-      if (_current == VpnState.disconnected) {
+      // Avoid calling into plugin if already disconnected or session never started
+      if (_current == VpnState.disconnected || !_sessionStarted) {
+        _sessionStarted = false;
         return;
       }
       // Use dynamic to handle different plugin API versions
@@ -377,6 +370,7 @@ class VpnController {
       }
       
       await _sessionManager.endSession(); // End session when disconnecting
+      _sessionStarted = false;
       _set(VpnState.disconnected);
     } catch (e) {
       _lastError = 'Disconnect failed: $e';
