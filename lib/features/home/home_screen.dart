@@ -156,6 +156,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       final List<dynamic> all = (vpng?['allServers'] as List<dynamic>?) ?? <dynamic>[];
       if (all.isEmpty) {
         print('❌ No servers from CSV→JSON loader');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No servers available. Pull to refresh.')),
+          );
+        }
         return;
       }
 
@@ -172,33 +177,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       print('🎯 Found ${all.length} servers from CSV');
       _prepareCandidates(all);
 
-      // Try top 3 candidates
+      // Pick the first candidate only
       final ctrl = ref.read(vpnControllerProvider);
-      final int maxAttempts = 3;
-      for (int i = 0; i < all.length && i < maxAttempts; i++) {
-        final s = all[i] as Map<String, dynamic>;
-        final b64 = (s['ovpnBase64'] ?? '') as String;
-        final host = (s['hostName'] ?? '') as String;
-        final ctry = (s['country'] ?? '') as String;
-        final ping = (s['ping'] ?? 9999) as int;
-        final speed = (s['speed'] ?? 0) as int;
-        if (b64.isEmpty) continue;
-        print('🎯 Attempt ${i + 1}/$maxAttempts: $host ($ctry)');
-        print('📊 Server stats: ${(speed / 1e6).toStringAsFixed(1)} Mbps, ${ping}ms');
-
-        final ok = await ctrl.connectFromBase64(b64, country: ctry);
-        if (ok) {
-          print('🚀 Successfully initiated connection to $host');
-          return;
-        } else {
-          print('⚠️ Connection attempt failed for $host, trying next server...');
+      final s = all.first as Map<String, dynamic>;
+      final b64 = (s['ovpnBase64'] ?? '') as String;
+      final host = (s['hostName'] ?? '') as String;
+      final ctry = (s['country'] ?? '') as String;
+      final ping = (s['ping'] ?? 9999) as int;
+      final speed = (s['speed'] ?? 0) as int;
+      if (b64.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Selected server has no config. Trying refresh.')),
+          );
         }
+        return;
       }
+      print('🎯 Attempt 1/1: $host ($ctry)');
+      print('📊 Server stats: ${(speed / 1e6).toStringAsFixed(1)} Mbps, ${ping}ms');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No working OpenVPN config found. Please refresh and try another server.')),
+          const SnackBar(content: Text('Connection initialised')),
         );
+      }
+
+      final ok = await ctrl.connectFromBase64(b64, country: ctry);
+      if (ok) {
+        print('🚀 Successfully initiated connection to $host');
+        return;
+      } else {
+        print('⚠️ Connection attempt failed for $host');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Connection failed. Try another server.')),
+          );
+        }
       }
     } catch (e) {
       print('❌ Connect Fastest failed: $e');
@@ -689,6 +703,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                           try { await ctrl.disconnect(); } catch (_) {}
                           
                           Navigator.of(context).pop();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Connection initialised')),
+                            );
+                          }
                           await ctrl.connectFromBase64(b64, country: s.country);
                           return;
                         }

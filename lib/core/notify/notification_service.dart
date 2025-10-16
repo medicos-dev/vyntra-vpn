@@ -10,11 +10,12 @@ class NotificationService {
   static const String _channelId = 'vyntra_vpn_status';
 
   Future<void> init() async {
-    const AndroidInitializationSettings android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    // Use the default launcher icon resource name without the @ prefix
+    const AndroidInitializationSettings android = AndroidInitializationSettings('ic_launcher');
     const InitializationSettings init = InitializationSettings(android: android);
     await _plugin.initialize(init,
       onDidReceiveNotificationResponse: (resp) async {
-        if (resp.payload == 'disconnect') {
+        if (resp.payload == 'disconnect' || resp.actionId == 'disconnect') {
           const platform = MethodChannel('vyntra.vpn.actions');
           try { await platform.invokeMethod('disconnect'); } catch (_) {}
         }
