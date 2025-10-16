@@ -300,38 +300,86 @@ class VpnController {
       const String username = 'vpn';
       const String password = 'vpn';
 
+      // Prepare adjusted config with minimal directives for username/password-only auth
+      String adjusted = configText.trimRight();
+      if (!RegExp(r'^\s*auth-user-pass\b', multiLine: true).hasMatch(adjusted)) {
+        adjusted += '\nauth-user-pass\n';
+      }
+      if (!RegExp(r'^\s*client-cert-not-required\b', multiLine: true).hasMatch(adjusted)) {
+        adjusted += '\nclient-cert-not-required\n';
+      }
+      if (!RegExp(r'^\s*remote-cert-tls\s+server', multiLine: true).hasMatch(adjusted)) {
+        adjusted += '\nremote-cert-tls server\n';
+      }
+      if (!RegExp(r'^\s*setenv\s+CLIENT_CERT\s+0', multiLine: true).hasMatch(adjusted)) {
+        adjusted += '\nsetenv CLIENT_CERT 0\n';
+      }
+      if (!RegExp(r'^\s*dev\s+tun\b', multiLine: true).hasMatch(adjusted)) {
+        adjusted += '\ndev tun\n';
+      }
+      // Ensure newline at end
+      if (!adjusted.endsWith('\n')) adjusted += '\n';
+
       // Start connection with a simple timeout guard
       final Completer<bool> done = Completer<bool>();
-      final timeout = Timer(const Duration(seconds: 15), () {
-        if (!done.isCompleted) {
+      final timeout = Timer(const Duration(seconds: 15), () async {
+        if (!done.isCompleted && _current == VpnState.connecting) {
           print('⏰ Connection timeout after 15 seconds');
+          _lastError = 'Connection timeout - server may be unreachable';
+          _sessionStarted = false;
+          _stopCountdown();
+          NotificationService().showDisconnected();
+          _set(VpnState.failed);
+          try { await disconnect(); } catch (_) {}
+          done.complete(false);
         }
       });
 
       try {
+        // Prefer path-based connect with auth file reference to avoid interactive prompts
+        final authFile = await _saveAuthToCache(username, password, nameHint: 'ovpn_auth');
+        // Reference auth file explicitly
+        String pathConfig = adjusted.replaceAll(RegExp(r'^\s*auth-user-pass\b.*$', multiLine: true), 'auth-user-pass ${authFile.path}');
+        final ovpnFile = await _saveOvpnToCache(pathConfig, nameHint: 'profile');
+        print('📁 Saved OVPN to: ${ovpnFile.path}');
         final res = await (_engine as dynamic).connect(
-          configText.trimRight() + '\n',
+          ovpnFile.path,
           'Vyntra',
           certIsRequired: false,
           username: username,
           password: password,
         );
         _sessionStarted = true;
-        print('📊 Connection result: $res');
+        print('📊 Connection result (path): $res');
       } catch (e) {
-        timeout.cancel();
-        print('❌ Connect failed: $e');
-        _lastError = 'Connect failed: $e';
-        _set(VpnState.failed);
-        return false;
+        print('⚠️ Path connect failed, trying inline: $e');
+        try {
+          final resInline = await (_engine as dynamic).connect(
+            adjusted,
+            'Vyntra',
+            certIsRequired: false,
+            username: username,
+            password: password,
+          );
+          _sessionStarted = true;
+          print('📊 Connection result (inline): $resInline');
+        } catch (e2) {
+          timeout.cancel();
+          print('❌ Connect failed: $e2');
+          _lastError = 'Connect failed: $e2';
+          _set(VpnState.failed);
+          if (!done.isCompleted) done.complete(false);
+          return false;
+        }
       }
 
       // Hand over to session manager; report success kick-off
-      timeout.cancel();
-      print('⏳ Connection initiated from base64');
       _startCountdown(seconds: 3600);
       NotificationService().showConnected(title: 'Connected', body: 'Up: 0.0 Mbps | Down: 0.0 Mbps | 60:00');
-      return true;
+      if (!done.isCompleted) done.complete(true);
+      timeout.cancel();
+      print('⏳ Connection initiated from base64');
+      return await done.future;
     } catch (e) {
       _lastError = 'Connection failed: $e';
       _set(VpnState.failed);

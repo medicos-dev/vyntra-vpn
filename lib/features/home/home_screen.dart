@@ -8,7 +8,7 @@ import '../../core/vpn/reconnect_watchdog.dart';
 import '../../core/vpn/vpn_controller.dart';
 import '../servers/server_list_screen.dart';
 import '../settings/settings_screen.dart';
-import 'dart:convert'; // Added for base64 and utf8
+import 'dart:convert';
 
 final vpngateProvider = Provider((ref) => VpnGateService());
 final unifiedVpnProvider = Provider((ref) => UnifiedVpnService());
@@ -97,7 +97,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
-      // Use the new CSV service to fetch servers with decoded OpenVPN configs
+      // Use VPNGate CSV → JSON loader as the data source
       final csvServers = await VpnGateCsvService.fetchVpnGateServers();
 
       if (mounted) {
@@ -107,13 +107,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           servers = csvServers;
           _loadingServers = false;
         });
-        print('🏠 Home screen loaded ${servers.length} servers');
+        print('🏠 Home screen loaded ${servers.length} servers (vpngate csv)');
         if (servers.isNotEmpty) {
           print('🚀 Fastest server: ${servers.first.hostname} (${servers.first.country}) - ${servers.first.pingMs}ms');
         }
       }
     } catch (e) {
-      print('Error loading servers: $e');
+      print('Error loading servers (vpngate csv): $e');
       if (mounted) {
         setState(() {
           _loadingServers = false;
@@ -129,7 +129,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
-      // Force refresh by fetching fresh CSV data
+      // Force refresh via VPNGate CSV service
       final csvServers = await VpnGateCsvService.fetchVpnGateServers();
 
       if (mounted) {
@@ -140,7 +140,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         });
       }
     } catch (e) {
-      print('Error retrying server load: $e');
+      print('Error retrying server load (vpngate csv): $e');
       if (mounted) {
         setState(() {
           _loadingServers = false;
@@ -155,11 +155,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         const SnackBar(content: Text('Connection initialised')),
       );
     }
-    // Load servers via unified service (the extractor already feeds this path)
     try {
-      final unified = UnifiedVpnService();
-      final List<VpnServer> list = await unified.fetchAllServers();
-      if (list.isEmpty) {
+      // If we already have servers loaded from CSV, use them; else fetch
+      List<VpnServer> pool = servers;
+      if (pool.isEmpty) {
+        pool = await VpnGateCsvService.fetchVpnGateServers();
+      }
+      if (pool.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('No servers available. Pull to refresh.')),
@@ -169,17 +171,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       }
 
       // Rank: lower ping first, then higher speed
-      final serversWithConfig = list.where((s) => ((s.ovpnBase64 != null && s.ovpnBase64!.isNotEmpty) || (s.ovpnConfig != null && s.ovpnConfig!.isNotEmpty))).toList();
-      if (serversWithConfig.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No OpenVPN configs available. Try refresh.')),
-          );
-        }
-        return;
-      }
-
-      serversWithConfig.sort((a, b) {
+      pool.sort((a, b) {
         final int ap = (a.pingMs ?? 9999);
         final int bp = (b.pingMs ?? 9999);
         if (ap != bp) return ap.compareTo(bp);
@@ -188,44 +180,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         return bspeed.compareTo(aspeed);
       });
 
-      print('🎯 Found ${serversWithConfig.length} servers from unified');
       // Candidate queue for watchdog auto-failover
-      final all = serversWithConfig
-          .map((s) {
-            final b64 = (s.ovpnBase64 != null && s.ovpnBase64!.isNotEmpty)
-                ? s.ovpnBase64!
-                : base64.encode(utf8.encode(s.ovpnConfig!));
-            return {
-              'hostName': s.hostname,
-              'country': s.country,
-              'ping': s.pingMs ?? 9999,
-              'speed': s.speedBps ?? 0,
-              'ovpnBase64': b64,
-            };
-          })
+      final all = pool
+          .where((s) => (s.ovpnBase64 != null && s.ovpnBase64!.isNotEmpty) || (s.ovpnConfig != null && s.ovpnConfig!.isNotEmpty))
+          .map((s) => {
+                'hostName': s.hostname,
+                'country': s.country,
+                'ping': s.pingMs ?? 9999,
+                'speed': s.speedBps ?? 0,
+                'ovpnBase64': (s.ovpnBase64 != null && s.ovpnBase64!.isNotEmpty)
+                    ? s.ovpnBase64!
+                    : base64.encode(utf8.encode(s.ovpnConfig!)),
+              })
           .toList();
-      _prepareCandidates(all);
-
-      // Pick the first candidate only
-      final ctrl = ref.read(vpnControllerProvider);
-      final first = serversWithConfig.first;
-      final firstB64 = (first.ovpnBase64 != null && first.ovpnBase64!.isNotEmpty)
-          ? first.ovpnBase64!
-          : base64.encode(utf8.encode(first.ovpnConfig!));
-      print('🎯 Attempt 1/1: ${first.hostname} (${first.country})');
-      print('📊 Server stats: ${((first.speedBps ?? 0) / 1e6).toStringAsFixed(1)} Mbps, ${(first.pingMs ?? 9999)}ms');
-
-      final ok = await ctrl.connectFromBase64(firstB64, country: first.country ?? '');
-      if (ok) {
-        print('🚀 Successfully initiated connection to ${first.hostname}');
-        return;
-      } else {
-        print('⚠️ Connection attempt failed for ${first.hostname}');
+      if (all.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Connection failed. Try another server.')),
+            const SnackBar(content: Text('No OpenVPN configs available. Try refresh.')),
           );
         }
+        return;
+      }
+      _prepareCandidates(all);
+
+      // First candidate only
+      final ctrl = ref.read(vpnControllerProvider);
+      final first = all.first;
+      final b64 = first['ovpnBase64'] as String;
+      print('🎯 Attempt 1/1: ${first['hostName']} (${first['country']})');
+      print('📊 Server stats: ${(((first['speed'] as int) / 1e6)).toStringAsFixed(1)} Mbps, ${(first['ping'] as int)}ms');
+
+      final ok = await ctrl.connectFromBase64(b64, country: (first['country'] as String?) ?? '');
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Connection failed. Try another server.')),
+        );
       }
     } catch (e) {
       print('❌ Connect Fastest failed: $e');
@@ -235,14 +224,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         );
       }
     }
-
-    // Old CSV strategy (commented):
-    /*
-    try {
-      final json = await VpnGateCsvService.fetchAsStructuredJson();
-      // ... previous CSV-based logic (commented)
-    } catch (_) {}
-    */
   }
 
   Future<void> _disconnect() async {
