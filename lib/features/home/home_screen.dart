@@ -702,23 +702,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                         
                         // Handle different protocols
                         if (s.protocol == VpnProtocol.openvpn) {
-                          // Use the decoded OpenVPN config directly
-                          final ovpnConfig = s.ovpnConfig;
-                          if (ovpnConfig == null || ovpnConfig.isEmpty) {
+                          final b64 = s.ovpnBase64;
+                          if (b64 == null || b64.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('Config not found for this server. Try refresh or another server.')),
                             );
                             return;
                           }
-                          _currentProfile = ovpnConfig;
+                          _currentProfile = '';
                           
                           // Ensure any existing session is terminated before starting a new one
-                          try {
-                            await ctrl.disconnect();
-                          } catch (_) {}
+                          try { await ctrl.disconnect(); } catch (_) {}
                           
                           Navigator.of(context).pop();
-                          await ctrl.connect(ovpnConfig);
+                          await ctrl.connectFromBase64(b64, country: s.country);
                           return;
                         }
 

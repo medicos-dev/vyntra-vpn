@@ -4,6 +4,7 @@ import 'package:openvpn_flutter/openvpn_flutter.dart';
 import 'session_manager.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'dart:convert'; // Added for base64 decoding
 
 enum VpnState { disconnected, connecting, connected, reconnecting, failed }
 
@@ -254,6 +255,79 @@ class VpnController {
     } catch (e) {
       _lastError = 'Connection failed: $e';
       print('❌ VPN connection failed: $e');
+      _set(VpnState.failed);
+      return false;
+    }
+  }
+  
+  Future<bool> connectFromBase64(String ovpnBase64, {String? country}) async {
+    try {
+      _set(VpnState.connecting);
+      _lastError = '';
+
+      print('🔌 Attempting VPN connection (base64)...');
+      if (ovpnBase64.isEmpty) {
+        _lastError = 'Empty Base64 config';
+        _set(VpnState.failed);
+        return false;
+      }
+
+      // Decode Base64 → String
+      String configText;
+      try {
+        final bytes = base64.decode(ovpnBase64.trim());
+        configText = utf8.decode(bytes);
+      } catch (e) {
+        print('❌ Base64 decode failed: $e');
+        _lastError = 'Invalid Base64 OpenVPN config';
+        _set(VpnState.failed);
+        return false;
+      }
+
+      // Minimal validation
+      if (!configText.contains('client') || !configText.contains('remote')) {
+        _lastError = 'Invalid OpenVPN config';
+        _set(VpnState.failed);
+        return false;
+      }
+
+      // Decide auth
+      final requiresAuth = RegExp(r'auth-user-pass', caseSensitive: false).hasMatch(configText);
+      final String username = requiresAuth ? 'vpn' : '';
+      final String password = requiresAuth ? 'vpn' : '';
+
+      // Start connection with a simple timeout guard
+      final Completer<bool> done = Completer<bool>();
+      final timeout = Timer(const Duration(seconds: 15), () {
+        if (!done.isCompleted) {
+          print('⏰ Connection timeout after 15 seconds');
+        }
+      });
+
+      try {
+        final res = await (_engine as dynamic).connect(
+          configText.trimRight() + '\n',
+          'Vyntra',
+          certIsRequired: false,
+          username: username,
+          password: password,
+        );
+        _sessionStarted = true;
+        print('📊 Connection result: $res');
+      } catch (e) {
+        timeout.cancel();
+        print('❌ Connect failed: $e');
+        _lastError = 'Connect failed: $e';
+        _set(VpnState.failed);
+        return false;
+      }
+
+      // Hand over to session manager; report success kick-off
+      timeout.cancel();
+      print('⏳ Connection initiated from base64');
+      return true;
+    } catch (e) {
+      _lastError = 'Connection failed: $e';
       _set(VpnState.failed);
       return false;
     }
