@@ -48,6 +48,17 @@ class VpnGateCsvService {
       int speedIdx = headerCols.indexOf('Speed');
       int b64Idx = headerCols.indexOf('OpenVPN_ConfigData_Base64');
       if ([hostIdx, ipIdx, countryIdx, b64Idx].any((i) => i == -1)) {
+        // Case-insensitive fallback for header names
+        final lower = headerCols.map((e) => e.toLowerCase()).toList();
+        hostIdx = lower.indexOf('hostname');
+        ipIdx = lower.indexOf('ip');
+        countryIdx = lower.indexOf('countrylong');
+        scoreIdx = lower.indexOf('score');
+        pingIdx = lower.indexOf('ping');
+        speedIdx = lower.indexOf('speed');
+        b64Idx = lower.indexOf('openvpn_configdata_base64');
+      }
+      if ([hostIdx, ipIdx, countryIdx, b64Idx].any((i) => i == -1)) {
         return servers;
       }
 
@@ -74,12 +85,8 @@ class VpnGateCsvService {
           // Decode Base64 to get OpenVPN config text
           final ovpnText = utf8.decode(base64.decode(cleanBase64));
 
-          // Comprehensive validation that it's a proper OpenVPN config
-          if (!ovpnText.contains('client') ||
-              !ovpnText.contains('remote') ||
-              !ovpnText.contains('<ca>') ||
-              !ovpnText.contains('</ca>')) {
-            // Skip if essential elements missing
+          // Basic validation: must at least have client and remote
+          if (!ovpnText.contains('client') || !ovpnText.contains('remote')) {
             continue;
           }
 
@@ -87,14 +94,13 @@ class VpnGateCsvService {
             hostName: parts.length > hostIdx ? parts[hostIdx].trim() : 'unknown',
             ip: parts.length > ipIdx ? parts[ipIdx].trim() : '0.0.0.0',
             country: parts.length > countryIdx ? parts[countryIdx].trim() : 'Unknown',
-            score: parts.length > scoreIdx ? int.tryParse((parts[scoreIdx]).trim()) ?? 0 : 0,
-            pingMs: parts.length > pingIdx ? int.tryParse((parts[pingIdx]).trim()) ?? 9999 : 9999,
-            speedBps: parts.length > speedIdx ? int.tryParse((parts[speedIdx]).trim()) ?? 0 : 0,
+            score: parts.length > scoreIdx && scoreIdx != -1 ? int.tryParse((parts[scoreIdx]).trim()) ?? 0 : 0,
+            pingMs: parts.length > pingIdx && pingIdx != -1 ? int.tryParse((parts[pingIdx]).trim()) ?? 9999 : 9999,
+            speedBps: parts.length > speedIdx && speedIdx != -1 ? int.tryParse((parts[speedIdx]).trim()) ?? 0 : 0,
             ovpnBase64: cleanBase64,
           ));
         } catch (e) {
           // Skip servers with invalid Base64 configs
-          // print('Skipping server due to invalid Base64: $e');
           continue;
         }
       }
