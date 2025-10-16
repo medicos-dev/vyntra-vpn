@@ -229,16 +229,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         print('📊 Server stats: ${candidate.speedMbps.toStringAsFixed(1)} Mbps, ${candidate.pingMs}ms ping, $protocol');
         
         // Use the decoded OpenVPN config directly
-        final ovpnConfig = candidate.ovpnConfig!;
+        String? ovpnConfig = candidate.ovpnConfig;
+        
+        // If missing, fetch on-demand via unified per-host endpoint
+        if (ovpnConfig == null || ovpnConfig.isEmpty) {
+          print('🔎 Fetching per-host config for ${candidate.hostname}...');
+          final vpnService = ref.read(unifiedVpnProvider);
+          ovpnConfig = await vpnService.fetchOvpnByHost(candidate.hostname);
+          if (ovpnConfig == null || ovpnConfig.isEmpty) {
+            print('❌ Config not found for ${candidate.hostname}, skipping');
+            continue;
+          }
+        }
         
         print('✅ Config found for ${candidate.hostname}, attempting connection...');
         _currentProfile = ovpnConfig;
         
         // Wait for connection result with timeout (increased to 35s to match VPN controller)
-        final connectionFuture = ctrl.connect(ovpnConfig);
-        final timeoutFuture = Future.delayed(const Duration(seconds: 35), () => false);
-        
-        final ok = await Future.any([connectionFuture, timeoutFuture]);
+        final ok = await Future.any([
+          ctrl.connect(ovpnConfig),
+          Future.delayed(const Duration(seconds: 35), () => false),
+        ]);
         
         if (ok) {
           print('🚀 Successfully connected to ${candidate.hostname}');

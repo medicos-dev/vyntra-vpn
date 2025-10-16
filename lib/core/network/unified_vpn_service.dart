@@ -17,6 +17,7 @@ class UnifiedVpnService {
 
   // Vercel API URLs
   static const String _unifiedApiUrl = 'https://vyntra-vpn.vercel.app/api/vpn-unified';
+  static const String _configApiUrl = 'https://vyntra-vpn.vercel.app/api/vpngate-config';
   
   // Cache keys
   static const String _cacheKey = 'unified_vpn_servers_cache';
@@ -410,6 +411,36 @@ class UnifiedVpnService {
       }
       return null;
     } catch (e) {
+      return null;
+    }
+  }
+
+  /// Fetch decoded .ovpn text for a VPNGate host or IP via unified per-config API
+  Future<String?> fetchOvpnByHost(String hostOrIp) async {
+    if (hostOrIp.isEmpty) return null;
+    try {
+      final res = await _dio.get(
+        _configApiUrl,
+        queryParameters: { 'host': hostOrIp },
+        options: Options(
+          responseType: ResponseType.json,
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache',
+            if (_vercelBypassToken.isNotEmpty) 'x-vercel-protection-bypass': _vercelBypassToken,
+          },
+          validateStatus: (s) => s != null && s < 500,
+        ),
+      );
+      if (res.statusCode != 200 || res.data is! Map) return null;
+      final Map data = res.data as Map;
+      final String b64 = (data['ovpnBase64'] ?? data['ovpn_base64'] ?? '').toString();
+      if (b64.isEmpty) return null;
+      final String clean = b64.trim().replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+      if (clean.length % 4 != 0 || clean.length < 500) return null;
+      final bytes = base64.decode(clean);
+      return utf8.decode(bytes);
+    } catch (_) {
       return null;
     }
   }

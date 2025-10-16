@@ -153,14 +153,13 @@ class VpnController {
         String username = '';
         String password = '';
         
-        // For VPNGate servers, always use empty credentials
-        // Only use vpn/vpn for SoftEther/PacketiX servers that explicitly require auth
-        if (requiresAuth && !configToUse.contains('vpngate') && !configToUse.contains('VPNGate')) {
+        // SoftEther / PacketiX servers generally require vpn/vpn
+        if (requiresAuth) {
           username = 'vpn';
           password = 'vpn';
           print('🔑 Using authentication credentials: $username/$password');
         } else {
-          print('🔓 Using empty credentials (VPNGate or no auth required)');
+          print('🔓 Using empty credentials');
         }
         
         // Use the correct API call with appropriate credentials
