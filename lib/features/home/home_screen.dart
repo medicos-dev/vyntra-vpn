@@ -8,6 +8,7 @@ import '../../core/vpn/reconnect_watchdog.dart';
 import '../../core/vpn/vpn_controller.dart';
 import '../servers/server_list_screen.dart';
 import '../settings/settings_screen.dart';
+import 'dart:convert'; // Added for base64 and utf8
 
 final vpngateProvider = Provider((ref) => VpnGateService());
 final unifiedVpnProvider = Provider((ref) => UnifiedVpnService());
@@ -168,7 +169,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       }
 
       // Rank: lower ping first, then higher speed
-      final serversWithConfig = list.where((s) => (s.ovpnBase64 != null && s.ovpnBase64!.isNotEmpty)).toList();
+      final serversWithConfig = list.where((s) => ((s.ovpnBase64 != null && s.ovpnBase64!.isNotEmpty) || (s.ovpnConfig != null && s.ovpnConfig!.isNotEmpty))).toList();
       if (serversWithConfig.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -190,24 +191,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       print('🎯 Found ${serversWithConfig.length} servers from unified');
       // Candidate queue for watchdog auto-failover
       final all = serversWithConfig
-          .map((s) => {
-                'hostName': s.hostname,
-                'country': s.country,
-                'ping': s.pingMs ?? 9999,
-                'speed': s.speedBps ?? 0,
-                'ovpnBase64': s.ovpnBase64 ?? '',
-              })
+          .map((s) {
+            final b64 = (s.ovpnBase64 != null && s.ovpnBase64!.isNotEmpty)
+                ? s.ovpnBase64!
+                : base64.encode(utf8.encode(s.ovpnConfig!));
+            return {
+              'hostName': s.hostname,
+              'country': s.country,
+              'ping': s.pingMs ?? 9999,
+              'speed': s.speedBps ?? 0,
+              'ovpnBase64': b64,
+            };
+          })
           .toList();
       _prepareCandidates(all);
 
       // Pick the first candidate only
       final ctrl = ref.read(vpnControllerProvider);
       final first = serversWithConfig.first;
-      final b64 = first.ovpnBase64!;
+      final firstB64 = (first.ovpnBase64 != null && first.ovpnBase64!.isNotEmpty)
+          ? first.ovpnBase64!
+          : base64.encode(utf8.encode(first.ovpnConfig!));
       print('🎯 Attempt 1/1: ${first.hostname} (${first.country})');
       print('📊 Server stats: ${((first.speedBps ?? 0) / 1e6).toStringAsFixed(1)} Mbps, ${(first.pingMs ?? 9999)}ms');
 
-      final ok = await ctrl.connectFromBase64(b64, country: first.country ?? '');
+      final ok = await ctrl.connectFromBase64(firstB64, country: first.country ?? '');
       if (ok) {
         print('🚀 Successfully initiated connection to ${first.hostname}');
         return;
