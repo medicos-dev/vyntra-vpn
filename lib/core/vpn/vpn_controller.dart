@@ -345,6 +345,10 @@ class VpnController {
     if (!RegExp(r'^\s*auth-nocache\b', multiLine: true).hasMatch(optimized)) {
       optimized += '\nauth-nocache\n';
     }
+    // Allow username/password-only auth without a client certificate
+    if (!RegExp(r'^\s*client-cert-not-required\b', multiLine: true).hasMatch(optimized)) {
+      optimized += '\nclient-cert-not-required\n';
+    }
     
     // Do not inject cipher lists; honor ciphers from the original config
     // (data-ciphers, ncp-ciphers, cipher, auth) will be used only if present in config
