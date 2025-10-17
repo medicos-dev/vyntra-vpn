@@ -20,11 +20,9 @@ class VpnController {
   bool _sessionStarted = false;
   Timer? _countdown;
 
-  // MethodChannel/EventChannel fields retained but not used for connect/stop now
-  static const String _eventChannelVpnStage = 'vpnStage';
-  static const String _methodChannelVpnControl = 'vpnControl';
-  final EventChannel _stageChannel = const EventChannel(_eventChannelVpnStage);
-  final MethodChannel _controlChannel = const MethodChannel(_methodChannelVpnControl);
+  // MethodChannel/EventChannel fields retained
+  static const String _pluginControlChannel = 'id.laskarmedia.openvpn_flutter/vpncontrol';
+  final MethodChannel _pluginControl = const MethodChannel(_pluginControlChannel);
   StreamSubscription? _stageSub;
 
   Stream<VpnState> get state => _stateCtrl.stream;
@@ -157,21 +155,21 @@ class VpnController {
           _stopCountdown();
           NotificationService().showDisconnected();
           _set(VpnState.failed);
-          try { final r = (_engine as dynamic).disconnect(); if (r is Future) await r; } catch (_) {}
+          try { await _pluginControl.invokeMethod('stop'); } catch (_) {}
           done.complete(false);
         }
       });
 
       try {
-        final result = await (_engine as dynamic).connect(
-          adjusted,
-          'Vyntra',
-          certIsRequired: false,
-          username: username,
-          password: password,
-        );
+        // Start via plugin's control channel
+        await _pluginControl.invokeMethod('start', {
+          'config': adjusted,
+          'country': country ?? '',
+          'username': username,
+          'password': password,
+        });
         _sessionStarted = true;
-        print('📊 Connection result (inline): $result');
+        print('📊 Connection start invoked via plugin channel');
       } catch (e) {
         timeout.cancel();
         print('❌ Connect failed: $e');
@@ -201,8 +199,7 @@ class VpnController {
         return;
       }
       try {
-        final r = (_engine as dynamic).disconnect();
-        if (r is Future) await r;
+        await _pluginControl.invokeMethod('stop');
       } catch (_) {}
       await _sessionManager.endSession();
       _sessionStarted = false;
