@@ -20,7 +20,7 @@ class VpnController {
   bool _sessionStarted = false;
   Timer? _countdown;
 
-  // MethodChannel/EventChannel backend (matches reference VpnEngine)
+  // MethodChannel/EventChannel fields retained but not used for connect/stop now
   static const String _eventChannelVpnStage = 'vpnStage';
   static const String _methodChannelVpnControl = 'vpnControl';
   final EventChannel _stageChannel = const EventChannel(_eventChannelVpnStage);
@@ -44,8 +44,7 @@ class VpnController {
       await NotificationService().init();
       await _sessionManager.initialize();
       print('✅ VPN controller initialization complete');
-
-      // Listen to session expiration
+      
       _sessionManager.statusStream.listen((status) {
         if (status == SessionStatus.expired && _current == VpnState.connected) {
           disconnect();
@@ -106,8 +105,7 @@ class VpnController {
         _set(VpnState.failed);
         return false;
       }
-
-      // Decode Base64 → String (use as-is, no mutation)
+      
       String configText;
       try {
         final bytes = base64.decode(ovpnBase64.trim());
@@ -118,64 +116,77 @@ class VpnController {
         _set(VpnState.failed);
         return false;
       }
-
+      
       if (!configText.contains('client') || !configText.contains('remote')) {
         _lastError = 'Invalid OpenVPN config';
         _set(VpnState.failed);
         return false;
       }
 
-      // Always apply auth credentials vpn/vpn
       const String username = 'vpn';
       const String password = 'vpn';
 
-      // Listen to stage updates
-      await _stageSub?.cancel();
-      _stageSub = _stageChannel.receiveBroadcastStream().cast<String>().listen((stage) {
-        final s = stage.toLowerCase();
-        if (s == 'connected') {
-          if (_current != VpnState.connected) {
-            print('🎉 VPN connected');
-            _set(VpnState.connected);
-            _sessionStarted = true;
-            _startCountdown(seconds: 3600);
-            NotificationService().showConnected(title: 'Connected', body: 'Up: 0.0 Mbps | Down: 0.0 Mbps | 60:00');
-          }
-        } else if (s == 'disconnected' || s == 'denied' || s == 'no_connection') {
-          if (_current != VpnState.disconnected) {
-            print('❌ VPN disconnected/failed: $s');
-            _sessionStarted = false;
-            _stopCountdown();
-            NotificationService().showDisconnected();
-            _set(VpnState.failed);
-          }
-        } else if (s == 'connecting' || s == 'prepare' || s == 'authenticating' || s == 'wait_connection' || s == 'reconnect') {
-          _set(VpnState.connecting);
-        }
-      });
+      // Minimal adjustments only if missing
+      String adjusted = configText.trimRight();
+      if (!RegExp(r'^\s*auth-user-pass\b', multiLine: true).hasMatch(adjusted)) {
+        adjusted += '\nauth-user-pass\n';
+      }
+      if (!RegExp(r'^\s*client-cert-not-required\b', multiLine: true).hasMatch(adjusted)) {
+        adjusted += '\nclient-cert-not-required\n';
+      }
+      if (!RegExp(r'^\s*remote-cert-tls\s+server', multiLine: true).hasMatch(adjusted)) {
+        adjusted += '\nremote-cert-tls server\n';
+      }
+      if (!RegExp(r'^\s*setenv\s+CLIENT_CERT\s+0', multiLine: true).hasMatch(adjusted)) {
+        adjusted += '\nsetenv CLIENT_CERT 0\n';
+      }
+      if (!RegExp(r'^\s*dev\s+tun\b', multiLine: true).hasMatch(adjusted)) {
+        adjusted += '\ndev tun\n';
+      }
+      // Strip client-certificate lines to avoid prompts
+      adjusted = adjusted.replaceAll(RegExp(r'^\s*(pkcs12|cert|key)\b.*$', multiLine: true), '');
+      if (!adjusted.endsWith('\n')) adjusted += '\n';
 
       // 45s timeout guard
-      Timer(const Duration(seconds: 45), () async {
-        if (_current == VpnState.connecting) {
+      final Completer<bool> done = Completer<bool>();
+      final timeout = Timer(const Duration(seconds: 45), () async {
+        if (!done.isCompleted && _current == VpnState.connecting) {
           print('⏰ Connection timeout after 45 seconds');
-          try { await _controlChannel.invokeMethod('stop'); } catch (_) {}
+          _lastError = 'Connection timeout - server may be unreachable';
           _sessionStarted = false;
           _stopCountdown();
           NotificationService().showDisconnected();
           _set(VpnState.failed);
+          try { final r = (_engine as dynamic).disconnect(); if (r is Future) await r; } catch (_) {}
+          done.complete(false);
         }
       });
 
-      // Start via MethodChannel (inline)
-      await _controlChannel.invokeMethod('start', {
-        'config': configText,
-        'country': country ?? '',
-        'username': username,
-        'password': password,
-      });
+      try {
+        final result = await (_engine as dynamic).connect(
+          adjusted,
+          'Vyntra',
+          certIsRequired: false,
+          username: username,
+          password: password,
+        );
+        _sessionStarted = true;
+        print('📊 Connection result (inline): $result');
+      } catch (e) {
+        timeout.cancel();
+        print('❌ Connect failed: $e');
+        _lastError = 'Connect failed: $e';
+        _set(VpnState.failed);
+        if (!done.isCompleted) done.complete(false);
+        return false;
+      }
 
+      _startCountdown(seconds: 3600);
+      NotificationService().showConnected(title: 'Connected', body: 'Up: 0.0 Mbps | Down: 0.0 Mbps | 60:00');
+      if (!done.isCompleted) done.complete(true);
+      timeout.cancel();
       print('⏳ Connection initiated from base64');
-      return true;
+      return await done.future;
     } catch (e) {
       _lastError = 'Connection failed: $e';
       _set(VpnState.failed);
@@ -190,7 +201,8 @@ class VpnController {
         return;
       }
       try {
-        await _controlChannel.invokeMethod('stop');
+        final r = (_engine as dynamic).disconnect();
+        if (r is Future) await r;
       } catch (_) {}
       await _sessionManager.endSession();
       _sessionStarted = false;
