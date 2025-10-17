@@ -196,8 +196,8 @@ class VpnController {
         }
       });
 
+      // Try native control channel first, but do not fail if missing
       try {
-        // Start via native control channel (aligned with reference)
         await _controlChannel.invokeMethod('start', {
           'config': adjusted,
           'country': country ?? '',
@@ -205,11 +205,24 @@ class VpnController {
           'password': password,
         });
         print('📊 Connection start invoked via control channel');
-        
+      } catch (_) {
+        // MissingPlugin or unimplemented: fall back to plugin connect
+        print('ℹ️ vpnControl.start not available, falling back to plugin connect');
+      }
+
+      // Ensure connection via OpenVPN Flutter plugin as a reliable fallback
+      try {
+        await _engine.connect(
+          adjusted,
+          'Vyntra',
+          username: username,
+          password: password,
+          certIsRequired: false,
+        );
+        print('📊 Plugin connect invoked');
       } catch (e) {
         timeout.cancel();
-        print('❌ Connect failed: $e');
-        
+        print('❌ Plugin connect failed: $e');
         _lastError = 'Connect failed: $e';
         _set(VpnState.failed);
         if (!done.isCompleted) done.complete(false);
@@ -236,9 +249,8 @@ class VpnController {
       if (_current == VpnState.disconnected) {
         return;
       }
-      try {
-        await _controlChannel.invokeMethod('stop');
-      } catch (_) {}
+      try { await _controlChannel.invokeMethod('stop'); } catch (_) {}
+      try { _engine.disconnect(); } catch (_) {}
       await _sessionManager.endSession();
       _stopCountdown();
       _set(VpnState.disconnected);
