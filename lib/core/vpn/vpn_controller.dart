@@ -196,6 +196,37 @@ class VpnController {
       if (!RegExp(r'^\s*setenv\s+UV_PLAT', multiLine: true).hasMatch(adjusted)) {
         adjusted += 'setenv UV_PLAT android\n';
       }
+      // Ensure stability flags commonly required on Android
+      if (!RegExp(r'^\s*nobind\b', multiLine: true).hasMatch(adjusted)) {
+        adjusted += 'nobind\n';
+      }
+      if (!RegExp(r'^\s*persist-key\b', multiLine: true).hasMatch(adjusted)) {
+        adjusted += 'persist-key\n';
+      }
+      if (!RegExp(r'^\s*persist-tun\b', multiLine: true).hasMatch(adjusted)) {
+        adjusted += 'persist-tun\n';
+      }
+      if (!RegExp(r'^\s*auth-nocache\b', multiLine: true).hasMatch(adjusted)) {
+        adjusted += 'auth-nocache\n';
+      }
+      // OpenVPN3 prefers data-ciphers; map legacy cipher to data-ciphers if needed
+      final Match? cipherMatch = RegExp(r'^\s*cipher\s+([^\s#]+)', multiLine: true).firstMatch(adjusted);
+      final bool hasDataCiphers = RegExp(r'^\s*data-ciphers\b', multiLine: true).hasMatch(adjusted);
+      if (!hasDataCiphers) {
+        final String preferred = cipherMatch != null ? cipherMatch.group(1) ?? '' : '';
+        final List<String> defaults = <String>['AES-256-GCM','AES-128-GCM','AES-256-CBC','AES-128-CBC'];
+        final List<String> list = preferred.isNotEmpty && !defaults.contains(preferred)
+            ? <String>[preferred, ...defaults]
+            : defaults;
+        adjusted += 'data-ciphers ${list.join(':')}\n';
+      }
+      // For UDP, explicit-exit-notify improves teardown; harmless on server ignoring
+      if (RegExp(r'^\s*proto\s+udp\b', multiLine: true).hasMatch(adjusted) &&
+          !RegExp(r'^\s*explicit-exit-notify\b', multiLine: true).hasMatch(adjusted)) {
+        adjusted += 'explicit-exit-notify 3\n';
+      }
+      // Normalize tcp proto to tcp-client if needed
+      adjusted = adjusted.replaceAll(RegExp(r'^\s*proto\s+tcp\b', multiLine: true), 'proto tcp-client');
 
       // 45s timeout guard
       final Completer<bool> done = Completer<bool>();
