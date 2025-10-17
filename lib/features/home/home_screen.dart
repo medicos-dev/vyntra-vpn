@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/vpngate_service.dart';
-import '../../core/network/vpngate_csv_service.dart';
 import '../../core/network/unified_vpn_service.dart';
 import '../../core/models/vpn_server.dart';
 import '../../core/vpn/reconnect_watchdog.dart';
 import '../../core/vpn/vpn_controller.dart';
 import '../servers/server_list_screen.dart';
 import '../settings/settings_screen.dart';
-import 'dart:convert';
 import 'package:vyntra_app_aiks/core/network/apis.dart';
 import 'package:vyntra_app_aiks/core/models/vpndart.dart';
 
@@ -29,9 +27,9 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   List<VpnServer> servers = [];
-  String? _currentProfile;
+  // removed unused _currentProfile to keep lints clean
   ReconnectWatchdog? _watchdog;
   late AnimationController _pulseController;
   late AnimationController _glowController;
@@ -57,6 +55,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pulseController = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
@@ -89,6 +88,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         await _retryLoadServers();
       }
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      final ctrl = ref.read(vpnControllerProvider);
+      // Ask native side to refresh and emit current stage
+      ctrl.refreshStage();
+    }
   }
 
   Future<void> _loadServers() async {
@@ -276,6 +285,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _watchdog?.dispose();
     _pulseController.dispose();
     _glowController.dispose();
@@ -717,8 +727,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                             );
                             return;
                           }
-                          _currentProfile = '';
-                          
                           // Ensure any existing session is terminated before starting a new one
                           try { await ctrl.disconnect(); } catch (_) {}
                           

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -12,15 +13,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _openAlwaysOnVpnSettings() async {
     try {
-      await launchUrl(
-        Uri.parse('android.settings.VPN_SETTINGS'),
-        mode: LaunchMode.externalApplication,
-      );
+      // Try native kill switch (aligned with reference's vpnControl.kill_switch)
+      const MethodChannel _control = MethodChannel('vpnControl');
+      await _control.invokeMethod('kill_switch');
     } catch (e) {
-      await launchUrl(
-        Uri.parse('android.settings.SETTINGS'),
-        mode: LaunchMode.externalApplication,
-      );
+      // Fallback to Android Settings intents
+      try {
+        await launchUrl(
+          Uri.parse('android.settings.VPN_SETTINGS'),
+          mode: LaunchMode.externalApplication,
+        );
+      } catch (_) {
+        await launchUrl(
+          Uri.parse('android.settings.SETTINGS'),
+          mode: LaunchMode.externalApplication,
+        );
+      }
     }
   }
 

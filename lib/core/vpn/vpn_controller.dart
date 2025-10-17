@@ -1,11 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-// import 'package:flutter/services.dart';
+import 'package:flutter/services.dart';
 import 'package:openvpn_flutter/openvpn_flutter.dart';
-// TODO: Add WireGuard/Shadowsocks plugins when finalized.
 import 'session_manager.dart';
-// import 'package:path_provider/path_provider.dart';
-// import 'dart:io';
 import '../notify/notification_service.dart';
 
 enum VpnState { disconnected, connecting, connected, reconnecting, failed }
@@ -23,7 +20,12 @@ class VpnController {
   // Tracks session lifecycle via SessionManager only
   Timer? _countdown;
 
-  // Stage callback is registered via OpenVPN constructor
+  // Reference-aligned native channels
+  static const String _eventChannelVpnStage = 'vpnStage';
+  static const String _methodChannelVpnControl = 'vpnControl';
+  final EventChannel _stageChannel = const EventChannel(_eventChannelVpnStage);
+  final MethodChannel _controlChannel = const MethodChannel(_methodChannelVpnControl);
+  StreamSubscription? _stageSubscription;
 
   Stream<VpnState> get state => _stateCtrl.stream;
   VpnState get current => _current;
@@ -33,34 +35,44 @@ class VpnController {
 
   Future<void> init() async {
     try {
-      print('🔧 Initializing VPN controller...');
+      print('🔧 Initializing VPN controller (channel-based)...');
+      // Initialize plugin engine and also listen to its stage as a fallback if native channel isn't provided
       await _engine.initialize(
         groupIdentifier: null,
         providerBundleIdentifier: null,
         localizedDescription: 'Vyntra VPN',
       );
-      // Recreate engine with stage handler to update state
+      // Stage mapping from plugin (fallback)
       OpenVPN(
         onVpnStatusChanged: (status) {},
         onVpnStageChanged: (stage, msg) async {
-          // stage change received
-          try {
-            if (stage == VPNStage.connected) {
-              _set(VpnState.connected);
-              await _sessionManager.startSession();
-            } else if (stage == VPNStage.disconnected) {
-              _stopCountdown();
-              NotificationService().showDisconnected();
-              _set(VpnState.disconnected);
-            } else if (stage == VPNStage.connecting) {
-              _set(VpnState.connecting);
-            } else {
-              // Treat other stages as transitional; do not touch error here
-            }
-          } catch (_) {}
+          final String s = stage.name.toLowerCase();
+          if (s == 'connected') {
+            _set(VpnState.connected);
+            await _sessionManager.startSession();
+          } else if (s == 'disconnected') {
+            _stopCountdown();
+            NotificationService().showDisconnected();
+            _set(VpnState.disconnected);
+          } else if (s == 'connecting' || s == 'wait_connection') {
+            _set(VpnState.connecting);
+          }
         },
       );
-      // Handler attached via constructor above
+      _stageSubscription?.cancel();
+      _stageSubscription = _stageChannel.receiveBroadcastStream().cast<String>().listen((stage) async {
+        final String s = (stage).toLowerCase();
+        if (s == 'connected') {
+          _set(VpnState.connected);
+          await _sessionManager.startSession();
+        } else if (s == 'disconnected') {
+          _stopCountdown();
+          NotificationService().showDisconnected();
+          _set(VpnState.disconnected);
+        } else if (s == 'connecting' || s == 'wait_connection') {
+          _set(VpnState.connecting);
+        }
+      });
       await NotificationService().init();
       await _sessionManager.initialize();
       print('✅ VPN controller initialization complete');
@@ -120,7 +132,7 @@ class VpnController {
       _set(VpnState.connecting);
       _lastError = '';
       print('🔌 Attempting VPN connection (base64)...');
-      
+
       if (ovpnBase64.isEmpty) {
         _lastError = 'Empty Base64 config';
         _set(VpnState.failed);
@@ -178,22 +190,21 @@ class VpnController {
           _stopCountdown();
           NotificationService().showDisconnected();
           _set(VpnState.failed);
-          try { _engine.disconnect(); } catch (_) {}
+          try { await _controlChannel.invokeMethod('stop'); } catch (_) {}
           
           done.complete(false);
         }
       });
 
       try {
-        // Connect using OpenVPN Flutter API
-        _engine.connect(
-          adjusted,
-          'Vyntra',
-          username: username,
-          password: password,
-          certIsRequired: false,
-        );
-        print('📊 Connection start invoked via plugin channel');
+        // Start via native control channel (aligned with reference)
+        await _controlChannel.invokeMethod('start', {
+          'config': adjusted,
+          'country': country ?? '',
+          'username': username,
+          'password': password,
+        });
+        print('📊 Connection start invoked via control channel');
         
       } catch (e) {
         timeout.cancel();
@@ -226,7 +237,7 @@ class VpnController {
         return;
       }
       try {
-        _engine.disconnect();
+        await _controlChannel.invokeMethod('stop');
       } catch (_) {}
       await _sessionManager.endSession();
       _stopCountdown();
@@ -239,11 +250,23 @@ class VpnController {
   }
 
   Future<void> dispose() async {
-    // No stream subscriptions to cancel; callbacks are GC'd with instance
+    await _stageSubscription?.cancel();
     _sessionManager.dispose();
     _stopCountdown();
     await _stateCtrl.close();
     await _secondsLeftCtrl.close();
+  }
+
+  Future<void> openKillSwitch() async {
+    try {
+      await _controlChannel.invokeMethod('kill_switch');
+    } catch (_) {}
+  }
+
+  Future<void> refreshStage() async {
+    try {
+      await _controlChannel.invokeMethod('refresh');
+    } catch (_) {}
   }
 
   
