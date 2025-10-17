@@ -9,14 +9,7 @@ import '../notify/notification_service.dart';
 enum VpnState { disconnected, connecting, connected, reconnecting, failed }
 
 class VpnController {
-  final OpenVPN _engine = OpenVPN(
-    onVpnStatusChanged: (status) {},
-    onVpnStageChanged: (stage, msg) async {
-      // stage callback reserved; state mapping handled in init via channels
-      // We cannot access instance fields here, so stage mapping is also handled in init via native or plugin fallback.
-      // This callback remains lightweight to avoid capturing outer state.
-    },
-  );
+  late final OpenVPN _engine;
   final SessionManager _sessionManager = SessionManager();
   final StreamController<VpnState> _stateCtrl = StreamController<VpnState>.broadcast();
   final StreamController<int> _secondsLeftCtrl = StreamController<int>.broadcast();
@@ -41,13 +34,30 @@ class VpnController {
   Future<void> init() async {
     try {
       print('🔧 Initializing VPN controller (channel-based)...');
-      // Initialize plugin engine and also listen to its stage as a fallback if native channel isn't provided
+      // Create engine with stage handler that updates our state
+      _engine = OpenVPN(
+        onVpnStatusChanged: (status) {},
+        onVpnStageChanged: (stage, msg) async {
+          final String s = stage.name.toLowerCase();
+          if (s == 'connected') {
+            _set(VpnState.connected);
+            await _sessionManager.startSession();
+          } else if (s == 'disconnected') {
+            _stopCountdown();
+            NotificationService().showDisconnected();
+            _set(VpnState.disconnected);
+          } else if (s == 'connecting' || s == 'wait_connection' || s == 'prepare' || s == 'authenticating' || s == 'reconnect') {
+            _set(VpnState.connecting);
+          }
+        },
+      );
+      // Initialize plugin engine
       await _engine.initialize(
         groupIdentifier: null,
         providerBundleIdentifier: null,
         localizedDescription: 'Vyntra VPN',
       );
-      // Stage mapping via native channel below; plugin mapping is optional and version-dependent
+      // Stage mapping via native channel below; plugin mapping above ensures fallback
       _stageSubscription?.cancel();
       _stageSubscription = _stageChannel.receiveBroadcastStream().cast<String>().listen((stage) async {
         final String s = (stage).toLowerCase();
@@ -174,6 +184,18 @@ class VpnController {
       try {
         adjusted = await _normalizeRemoteHostsToIp(adjusted);
       } catch (_) {}
+
+      // Force UDP if server supports both and avoid compression issues
+      if (!RegExp(r'^\s*proto\s+', multiLine: true).hasMatch(adjusted)) {
+        adjusted += '\nproto udp\n';
+      }
+      // Avoid server-pushed compression causing stalls on some networks
+      if (!RegExp(r'^\s*pull-filter\s+ignore\s+"comp-lzo"', multiLine: true).hasMatch(adjusted)) {
+        adjusted += 'pull-filter ignore "comp-lzo"\n';
+      }
+      if (!RegExp(r'^\s*setenv\s+UV_PLAT', multiLine: true).hasMatch(adjusted)) {
+        adjusted += 'setenv UV_PLAT android\n';
+      }
 
       // 45s timeout guard
       final Completer<bool> done = Completer<bool>();
