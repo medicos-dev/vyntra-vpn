@@ -488,7 +488,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         onLongPress: () async {
           // Hidden quick-connect using bundled .ovpn for experiments
           try {
-            final data = await rootBundle.loadString('data/vpngate_219.100.37.187_tcp_443.ovpn');
+            final data = await rootBundle.loadString('data/vpngate_public-vpn-241.opengw.net_tcp_443.ovpn');
             final ctrl = ref.read(vpnControllerProvider);
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(

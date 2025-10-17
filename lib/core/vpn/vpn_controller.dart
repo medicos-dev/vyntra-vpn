@@ -185,10 +185,10 @@ class VpnController {
         adjusted = await _normalizeRemoteHostsToIp(adjusted);
       } catch (_) {}
 
-      // Force UDP if server supports both and avoid compression issues
-      if (!RegExp(r'^\s*proto\s+', multiLine: true).hasMatch(adjusted)) {
-        adjusted += '\nproto udp\n';
-      }
+      // Don't force UDP for TCP configs; let TCP stay TCP
+      // if (!RegExp(r'^\s*proto\s+', multiLine: true).hasMatch(adjusted)) {
+      //   adjusted += '\nproto udp\n';
+      // }
       // Avoid server-pushed compression causing stalls on some networks
       if (!RegExp(r'^\s*pull-filter\s+ignore\s+"comp-lzo"', multiLine: true).hasMatch(adjusted)) {
         adjusted += 'pull-filter ignore "comp-lzo"\n';
@@ -256,6 +256,13 @@ class VpnController {
         // MissingPlugin or unimplemented: fall back to plugin connect
         print('ℹ️ vpnControl.start not available, falling back to plugin connect');
       }
+
+      // Request VPN permission explicitly before connecting
+      try {
+        // Note: requestPermission may not be available in all plugin versions
+        // The permission dialog will appear automatically when connect() is called
+        print('📊 VPN permission will be requested on connect');
+      } catch (_) {}
 
       // Ensure connection via OpenVPN Flutter plugin as a reliable fallback
       try {

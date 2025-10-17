@@ -38,10 +38,6 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-        <service
-            android:name="com.github.silexcorp.openvpn_flutter.OpenVPNService"
-            android:permission="android.permission.BIND_VPN_SERVICE"
-            android:exported="true" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
