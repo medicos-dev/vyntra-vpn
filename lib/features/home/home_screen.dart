@@ -198,9 +198,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
             const SnackBar(content: Text('No servers available. Pull to refresh.')),
           );
         }
-        return;
-      }
-
+      return;
+    }
+    
       pool.sort((a, b) {
         final int ap = (a.Ping ?? 9999);
         final int bp = (b.Ping ?? 9999);
@@ -246,10 +246,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       }
     } catch (e) {
       print('❌ Connect Fastest failed: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to load servers: $e')),
-        );
+      );
       }
     }
   }

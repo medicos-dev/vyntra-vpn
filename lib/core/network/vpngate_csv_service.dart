@@ -5,7 +5,7 @@ import '../models/vpn_server.dart';
 
 class VpnGateCsvService {
   static const String _vpngateApiUrl = 'http://www.vpngate.net/api/iphone/';
-
+  
   /// Fetch and parse VPNGate servers directly from CSV
   /// - Uses exact format: res.body.split('#')[1].replaceAll('*','')
   /// - Keeps original header casing (e.g., HostName, OpenVPN_ConfigData_Base64)
@@ -55,14 +55,14 @@ class VpnGateCsvService {
 
   /// Fetch and parse VPNGate servers and produce structured JSON (preserving Base64)
   static Future<Map<String, dynamic>> fetchAsStructuredJson() async {
-    final response = await http.get(
-      Uri.parse(_vpngateApiUrl),
-      headers: {
-        'User-Agent': 'Vyntra-VPN-Android/1.0',
-        'Cache-Control': 'no-cache',
-      },
-    );
-    if (response.statusCode != 200) {
+      final response = await http.get(
+        Uri.parse(_vpngateApiUrl),
+        headers: {
+          'User-Agent': 'Vyntra-VPN-Android/1.0',
+          'Cache-Control': 'no-cache',
+        },
+      );
+      if (response.statusCode != 200) {
       throw Exception('Failed to fetch VPNGate CSV: ${response.statusCode}');
     }
     final raw = response.body;
