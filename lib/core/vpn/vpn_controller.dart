@@ -179,6 +179,10 @@ class VpnController {
       // Strip client-certificate lines to avoid prompts
       adjusted = adjusted.replaceAll(RegExp(r'^\s*(pkcs12|cert|key)\b.*$', multiLine: true), '');
       if (!adjusted.endsWith('\n')) adjusted += '\n';
+      // Increase log verbosity if not specified for better diagnostics
+      if (!RegExp(r'^\s*verb\s+\d+', multiLine: true).hasMatch(adjusted)) {
+        adjusted += 'verb 5\n';
+      }
 
       // Replace DDNS hostnames with resolved IPv4 to bypass censorship/DNS blocks
       try {
@@ -268,9 +272,9 @@ class VpnController {
       try {
         await _engine.connect(
           adjusted,
-          'Vyntra',
-          username: username,
-          password: password,
+          'vpn',
+          username: 'vpn',
+          password: 'vpn',
           certIsRequired: false,
         );
         print('📊 Plugin connect invoked');
