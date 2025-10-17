@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/vpngate_service.dart';
 import '../../core/network/unified_vpn_service.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
 import '../../core/models/vpn_server.dart';
 import '../../core/vpn/reconnect_watchdog.dart';
 import '../../core/vpn/vpn_controller.dart';
@@ -482,8 +484,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(horizontal: 32),
-      child: ElevatedButton(
-        onPressed: isLoading ? null : (isConnected ? _disconnect : (servers.isEmpty ? null : _connectBest)),
+      child: GestureDetector(
+        onLongPress: () async {
+          // Hidden quick-connect using bundled .ovpn for experiments
+          try {
+            final data = await rootBundle.loadString('data/vpngate_219.100.37.187_tcp_443.ovpn');
+            final ctrl = ref.read(vpnControllerProvider);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Connecting test profile')),
+              );
+            }
+            final b64 = base64.encode(utf8.encode(data));
+            await ctrl.disconnect();
+            await ctrl.connectFromBase64(b64, country: 'Test');
+          } catch (_) {}
+        },
+        child: ElevatedButton(
+          onPressed: isLoading ? null : (isConnected ? _disconnect : (servers.isEmpty ? null : _connectBest)),
         style: ElevatedButton.styleFrom(
           backgroundColor: isConnected ? const Color(0xFFFF4444) : const Color(0xFF2196F3),
           foregroundColor: Colors.white,
@@ -494,7 +512,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           elevation: 12,
           shadowColor: (isConnected ? const Color(0xFFFF4444) : const Color(0xFF2196F3)).withValues(alpha: 0.4),
         ),
-        child: isLoading
+          child: isLoading
             ? const SizedBox(
                 height: 28,
                 width: 28,
@@ -521,6 +539,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                   ),
                 ],
               ),
+        ),
       ),
     );
   }

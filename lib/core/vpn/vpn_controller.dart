@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:openvpn_flutter/openvpn_flutter.dart';
 import 'session_manager.dart';
@@ -10,7 +11,11 @@ enum VpnState { disconnected, connecting, connected, reconnecting, failed }
 class VpnController {
   final OpenVPN _engine = OpenVPN(
     onVpnStatusChanged: (status) {},
-    onVpnStageChanged: (stage, msg) async {},
+    onVpnStageChanged: (stage, msg) async {
+      // stage callback reserved; state mapping handled in init via channels
+      // We cannot access instance fields here, so stage mapping is also handled in init via native or plugin fallback.
+      // This callback remains lightweight to avoid capturing outer state.
+    },
   );
   final SessionManager _sessionManager = SessionManager();
   final StreamController<VpnState> _stateCtrl = StreamController<VpnState>.broadcast();
@@ -42,23 +47,7 @@ class VpnController {
         providerBundleIdentifier: null,
         localizedDescription: 'Vyntra VPN',
       );
-      // Stage mapping from plugin (fallback)
-      OpenVPN(
-        onVpnStatusChanged: (status) {},
-        onVpnStageChanged: (stage, msg) async {
-          final String s = stage.name.toLowerCase();
-          if (s == 'connected') {
-            _set(VpnState.connected);
-            await _sessionManager.startSession();
-          } else if (s == 'disconnected') {
-            _stopCountdown();
-            NotificationService().showDisconnected();
-            _set(VpnState.disconnected);
-          } else if (s == 'connecting' || s == 'wait_connection') {
-            _set(VpnState.connecting);
-          }
-        },
-      );
+      // Stage mapping via native channel below; plugin mapping is optional and version-dependent
       _stageSubscription?.cancel();
       _stageSubscription = _stageChannel.receiveBroadcastStream().cast<String>().listen((stage) async {
         final String s = (stage).toLowerCase();
@@ -181,6 +170,11 @@ class VpnController {
       adjusted = adjusted.replaceAll(RegExp(r'^\s*(pkcs12|cert|key)\b.*$', multiLine: true), '');
       if (!adjusted.endsWith('\n')) adjusted += '\n';
 
+      // Replace DDNS hostnames with resolved IPv4 to bypass censorship/DNS blocks
+      try {
+        adjusted = await _normalizeRemoteHostsToIp(adjusted);
+      } catch (_) {}
+
       // 45s timeout guard
       final Completer<bool> done = Completer<bool>();
       final timeout = Timer(const Duration(seconds: 45), () async {
@@ -279,6 +273,34 @@ class VpnController {
     try {
       await _controlChannel.invokeMethod('refresh');
     } catch (_) {}
+  }
+
+  Future<String> _normalizeRemoteHostsToIp(String configText) async {
+    final List<String> lines = configText.split('\n');
+    final RegExp remotePattern = RegExp(r'^\s*remote\s+([^\s#]+)\s+(\d+)(?:\s+udp|\s+tcp)?\s*$', multiLine: false);
+    final RegExp ipv4Pattern = RegExp(r'^(?:\d{1,3}\.){3}\d{1,3}$');
+    for (int i = 0; i < lines.length; i++) {
+      final String line = lines[i];
+      final Match? m = remotePattern.firstMatch(line);
+      if (m != null) {
+        final String host = m.group(1) ?? '';
+        if (!ipv4Pattern.hasMatch(host)) {
+          try {
+            final List<InternetAddress> addresses = await InternetAddress.lookup(host);
+            final InternetAddress? ipv4 = addresses.firstWhere(
+              (a) => a.type == InternetAddressType.IPv4,
+              orElse: () => addresses.isNotEmpty ? addresses.first : InternetAddress(''),
+            );
+            if (ipv4 != null && ipv4.address.isNotEmpty) {
+              lines[i] = line.replaceFirst(host, ipv4.address);
+            }
+          } catch (_) {
+            // leave hostname if resolution fails
+          }
+        }
+      }
+    }
+    return lines.join('\n');
   }
 
   
