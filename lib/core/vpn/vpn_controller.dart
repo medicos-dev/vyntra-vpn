@@ -33,8 +33,6 @@ class VpnController {
 
   Future<void> init() async {
     try {
-      print('🔧 Initializing VPN controller (channel-based)...');
-      // Create engine with stage handler that updates our state
       _engine = OpenVPN(
         onVpnStatusChanged: (status) {},
         onVpnStageChanged: (stage, msg) async {
@@ -51,13 +49,13 @@ class VpnController {
           }
         },
       );
-      // Initialize plugin engine
+      
       await _engine.initialize(
         groupIdentifier: null,
         providerBundleIdentifier: null,
         localizedDescription: 'Vyntra VPN',
       );
-      // Stage mapping via native channel below; plugin mapping above ensures fallback
+      
       _stageSubscription?.cancel();
       _stageSubscription = _stageChannel.receiveBroadcastStream().cast<String>().listen((stage) async {
         final String s = (stage).toLowerCase();
@@ -72,9 +70,9 @@ class VpnController {
           _set(VpnState.connecting);
         }
       });
+      
       await NotificationService().init();
       await _sessionManager.initialize();
-      print('✅ VPN controller initialization complete');
       
       _sessionManager.statusStream.listen((status) {
         if (status == SessionStatus.expired && _current == VpnState.connected) {
@@ -130,7 +128,6 @@ class VpnController {
     try {
       _set(VpnState.connecting);
       _lastError = '';
-      print('🔌 Attempting VPN connection (base64)...');
 
       if (ovpnBase64.isEmpty) {
         _lastError = 'Empty Base64 config';
@@ -143,8 +140,6 @@ class VpnController {
         final bytes = base64.decode(ovpnBase64.trim());
         configText = utf8.decode(bytes);
       } catch (e) {
-        print('❌ Base64 decode failed: $e');
-        
         _lastError = 'Invalid Base64 OpenVPN config';
         _set(VpnState.failed);
         return false;
@@ -159,7 +154,6 @@ class VpnController {
       const String username = 'vpn';
       const String password = 'vpn';
 
-      // Minimal adjustments only if missing
       String adjusted = configText.trimRight();
       if (!RegExp(r'^\s*auth-user-pass\b', multiLine: true).hasMatch(adjusted)) {
         adjusted += '\nauth-user-pass\n';
@@ -176,31 +170,24 @@ class VpnController {
       if (!RegExp(r'^\s*dev\s+tun\b', multiLine: true).hasMatch(adjusted)) {
         adjusted += '\ndev tun\n';
       }
-      // Strip client-certificate lines to avoid prompts
+      
       adjusted = adjusted.replaceAll(RegExp(r'^\s*(pkcs12|cert|key)\b.*$', multiLine: true), '');
       if (!adjusted.endsWith('\n')) adjusted += '\n';
-      // Increase log verbosity if not specified for better diagnostics
+      
       if (!RegExp(r'^\s*verb\s+\d+', multiLine: true).hasMatch(adjusted)) {
         adjusted += 'verb 5\n';
       }
 
-      // Replace DDNS hostnames with resolved IPv4 to bypass censorship/DNS blocks
       try {
         adjusted = await _normalizeRemoteHostsToIp(adjusted);
       } catch (_) {}
 
-      // Don't force UDP for TCP configs; let TCP stay TCP
-      // if (!RegExp(r'^\s*proto\s+', multiLine: true).hasMatch(adjusted)) {
-      //   adjusted += '\nproto udp\n';
-      // }
-      // Avoid server-pushed compression causing stalls on some networks
       if (!RegExp(r'^\s*pull-filter\s+ignore\s+"comp-lzo"', multiLine: true).hasMatch(adjusted)) {
         adjusted += 'pull-filter ignore "comp-lzo"\n';
       }
       if (!RegExp(r'^\s*setenv\s+UV_PLAT', multiLine: true).hasMatch(adjusted)) {
         adjusted += 'setenv UV_PLAT android\n';
       }
-      // Ensure stability flags commonly required on Android
       if (!RegExp(r'^\s*nobind\b', multiLine: true).hasMatch(adjusted)) {
         adjusted += 'nobind\n';
       }
@@ -213,7 +200,7 @@ class VpnController {
       if (!RegExp(r'^\s*auth-nocache\b', multiLine: true).hasMatch(adjusted)) {
         adjusted += 'auth-nocache\n';
       }
-      // OpenVPN3 prefers data-ciphers; map legacy cipher to data-ciphers if needed
+      
       final Match? cipherMatch = RegExp(r'^\s*cipher\s+([^\s#]+)', multiLine: true).firstMatch(adjusted);
       final bool hasDataCiphers = RegExp(r'^\s*data-ciphers\b', multiLine: true).hasMatch(adjusted);
       if (!hasDataCiphers) {
@@ -224,30 +211,26 @@ class VpnController {
             : defaults;
         adjusted += 'data-ciphers ${list.join(':')}\n';
       }
-      // For UDP, explicit-exit-notify improves teardown; harmless on server ignoring
+      
       if (RegExp(r'^\s*proto\s+udp\b', multiLine: true).hasMatch(adjusted) &&
           !RegExp(r'^\s*explicit-exit-notify\b', multiLine: true).hasMatch(adjusted)) {
         adjusted += 'explicit-exit-notify 3\n';
       }
-      // Normalize tcp proto to tcp-client if needed
+      
       adjusted = adjusted.replaceAll(RegExp(r'^\s*proto\s+tcp\b', multiLine: true), 'proto tcp-client');
 
-      // 45s timeout guard
       final Completer<bool> done = Completer<bool>();
       final timeout = Timer(const Duration(seconds: 45), () async {
         if (!done.isCompleted && _current == VpnState.connecting) {
-          print('⏰ Connection timeout after 45 seconds');
           _lastError = 'Connection timeout - server may be unreachable';
           _stopCountdown();
           NotificationService().showDisconnected();
           _set(VpnState.failed);
           try { await _controlChannel.invokeMethod('stop'); } catch (_) {}
-          
           done.complete(false);
         }
       });
 
-      // Try native control channel first, but do not fail if missing
       try {
         await _controlChannel.invokeMethod('start', {
           'config': adjusted,
@@ -255,20 +238,8 @@ class VpnController {
           'username': username,
           'password': password,
         });
-        print('📊 Connection start invoked via control channel');
-      } catch (_) {
-        // MissingPlugin or unimplemented: fall back to plugin connect
-        print('ℹ️ vpnControl.start not available, falling back to plugin connect');
-      }
-
-      // Request VPN permission explicitly before connecting
-      try {
-        // Note: requestPermission may not be available in all plugin versions
-        // The permission dialog will appear automatically when connect() is called
-        print('📊 VPN permission will be requested on connect');
       } catch (_) {}
 
-      // Ensure connection via OpenVPN Flutter plugin as a reliable fallback
       try {
         await _engine.connect(
           adjusted,
@@ -277,10 +248,8 @@ class VpnController {
           password: 'vpn',
           certIsRequired: false,
         );
-        print('📊 Plugin connect invoked');
       } catch (e) {
         timeout.cancel();
-        print('❌ Plugin connect failed: $e');
         _lastError = 'Connect failed: $e';
         _set(VpnState.failed);
         if (!done.isCompleted) done.complete(false);
@@ -291,12 +260,10 @@ class VpnController {
       NotificationService().showConnected(title: 'Connected', body: 'Up: 0.0 Mbps | Down: 0.0 Mbps | 60:00');
       if (!done.isCompleted) done.complete(true);
       timeout.cancel();
-      print('⏳ Connection initiated from base64');
       
       return await done.future;
     } catch (e) {
       _lastError = 'Connection failed: $e';
-      
       _set(VpnState.failed);
       return false;
     }
