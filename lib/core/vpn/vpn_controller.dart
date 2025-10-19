@@ -236,6 +236,22 @@ class VpnController {
         }
       });
 
+      // Listen for connection success before starting
+      StreamSubscription? connectionSub;
+      connectionSub = _stateCtrl.stream.listen((state) {
+        if (state == VpnState.connected && !done.isCompleted) {
+          _startCountdown(seconds: 3600);
+          NotificationService().showConnected(title: 'Connected', body: 'Up: 0.0 Mbps | Down: 0.0 Mbps | 60:00');
+          timeout.cancel();
+          connectionSub?.cancel();
+          done.complete(true);
+        } else if (state == VpnState.failed && !done.isCompleted) {
+          timeout.cancel();
+          connectionSub?.cancel();
+          done.complete(false);
+        }
+      });
+
       try {
         await _controlChannel.invokeMethod('start', {
           'config': adjusted,
@@ -243,36 +259,34 @@ class VpnController {
           'username': username,
           'password': password,
         });
-      } catch (_) {}
+      } catch (_) {
+        // If native channel fails, fall back to engine connect
+        if (_engine == null) {
+          timeout.cancel();
+          connectionSub.cancel();
+          _lastError = 'VPN engine not initialized';
+          _set(VpnState.failed);
+          if (!done.isCompleted) done.complete(false);
+          return false;
+        }
 
-      if (_engine == null) {
-        timeout.cancel();
-        _lastError = 'VPN engine not initialized';
-        _set(VpnState.failed);
-        if (!done.isCompleted) done.complete(false);
-        return false;
+        try {
+          await _engine!.connect(
+            adjusted,
+            'vpn',
+            username: 'vpn',
+            password: 'vpn',
+            certIsRequired: false,
+          );
+        } catch (e) {
+          timeout.cancel();
+          connectionSub.cancel();
+          _lastError = 'Connect failed: $e';
+          _set(VpnState.failed);
+          if (!done.isCompleted) done.complete(false);
+          return false;
+        }
       }
-
-      try {
-        await _engine!.connect(
-          adjusted,
-          'vpn',
-          username: 'vpn',
-          password: 'vpn',
-          certIsRequired: false,
-        );
-      } catch (e) {
-        timeout.cancel();
-        _lastError = 'Connect failed: $e';
-        _set(VpnState.failed);
-        if (!done.isCompleted) done.complete(false);
-        return false;
-      }
-
-      _startCountdown(seconds: 3600);
-      NotificationService().showConnected(title: 'Connected', body: 'Up: 0.0 Mbps | Down: 0.0 Mbps | 60:00');
-      if (!done.isCompleted) done.complete(true);
-      timeout.cancel();
       
       return await done.future;
     } catch (e) {
