@@ -87,6 +87,7 @@ class VpnController extends StateNotifier<VpnState> {
       }
 
       // Try connecting to servers in order of preference
+      // Each attempt is isolated - failures are cleaned up before trying the next server
       for (int i = 0; i < preferredServers.length && i < 3; i++) {
         final server = preferredServers[i];
         _currentServer = server;
@@ -103,6 +104,7 @@ class VpnController extends StateNotifier<VpnState> {
           }
         } catch (e) {
           print('❌ Failed to connect to ${server.hostName}: $e');
+          // _attemptConnection already calls disconnect() on failure
           if (i == preferredServers.length - 1) {
             _lastError = 'All connection attempts failed. Last error: $e';
           }
@@ -141,12 +143,24 @@ class VpnController extends StateNotifier<VpnState> {
     _connectionTimeout = Timer(const Duration(seconds: 30), () {
       if (state == VpnState.connecting) {
         _lastError = 'Connection timeout - server did not respond';
+        _engine?.disconnect(); // Clean up timed out connection
         _set(VpnState.failed);
       }
     });
 
-    // Connect using OpenVPN Flutter
-    await _engine!.connect(adjustedConfig, 'vpn');
+    // Request VPN permission first
+    final hasPermission = await _requestVpnPermission();
+    if (!hasPermission) {
+      throw Exception('VPN permission denied - please grant VPN access');
+    }
+
+    // Connect using OpenVPN Flutter with credentials
+    await _engine!.connect(
+      adjustedConfig,
+      'vpn', // name
+      username: 'vpn',
+      password: 'vpn',
+    );
 
     // Wait for connection confirmation
     await Future.delayed(const Duration(seconds: 2));
@@ -156,12 +170,23 @@ class VpnController extends StateNotifier<VpnState> {
       return true;
     } else if (state == VpnState.failed) {
       _connectionTimeout?.cancel();
+      _engine?.disconnect(); // Clean up failed connection
       return false;
     }
 
     // If still connecting, wait a bit more
     await Future.delayed(const Duration(seconds: 3));
-    return state == VpnState.connected;
+    
+    // Final check after waiting
+    if (state == VpnState.connected) {
+      _connectionTimeout?.cancel();
+      return true;
+    } else {
+      // Connection failed or timed out
+      _connectionTimeout?.cancel();
+      _engine?.disconnect(); // Clean up failed connection
+      return false;
+    }
   }
 
   /// Refresh VPN stage
@@ -188,51 +213,76 @@ class VpnController extends StateNotifier<VpnState> {
   String _applyOpenVpn3Adjustments(String config, String serverIp) {
     String adjusted = config;
 
-    // Detect if this is a UDP or TCP config
-    final isUdp = adjusted.contains('proto udp') || !adjusted.contains('proto tcp');
-    
-    // Add OpenVPN3-compatible flags
-    final adjustments = [
+    // 1) Force UDP: replace any tcp/tcp-client with udp, ensure proto udp present
+    adjusted = adjusted
+        .replaceAll(RegExp(r'^\s*proto\s+tcp-client\s*$', multiLine: true), 'proto udp')
+        .replaceAll(RegExp(r'^\s*proto\s+tcp\s*$', multiLine: true), 'proto udp');
+    if (!RegExp(r'^\s*proto\s+udp\s*$', multiLine: true).hasMatch(adjusted)) {
+      adjusted += '\nproto udp';
+    }
+
+    // 2) Add OpenVPN3/Android fixes and modern ciphers
+    final adjustments = <String>[
       'pull-filter ignore "comp-lzo"',
+      'pull-filter ignore "ip-win32"', // ignore Windows-only option
       'setenv UV_PLAT android',
       'nobind',
       'persist-key',
       'persist-tun',
       'auth-nocache',
+      // Ensure modern ciphers are present (include CBC as fallback if server needs it)
       'data-ciphers AES-256-GCM:AES-128-GCM:AES-256-CBC:AES-128-CBC',
-      if (isUdp) 'proto udp' else 'proto tcp-client',
       'explicit-exit-notify 3',
       'verb 5',
     ];
 
-    for (final adjustment in adjustments) {
-      if (!adjusted.contains(adjustment.split(' ')[0])) {
-        adjusted += '\n$adjustment';
+    for (final line in adjustments) {
+      final key = line.split(' ').first;
+      if (!RegExp('^\\s*' + RegExp.escape(key) + r'\b', multiLine: true).hasMatch(adjusted)) {
+        adjusted += '\n$line';
       }
     }
 
-    // Handle auth-user-pass properly
-    if (adjusted.contains('#auth-user-pass')) {
-      // Uncomment the auth-user-pass line
-      adjusted = adjusted.replaceAll('#auth-user-pass', 'auth-user-pass');
-    } else if (!adjusted.contains('auth-user-pass')) {
-      // Add auth-user-pass if not present
+    // 3) Handle auth-user-pass: ensure present (plugin supplies credentials)
+    if (RegExp(r'^\s*#\s*auth-user-pass\b', multiLine: true).hasMatch(adjusted)) {
+      adjusted = adjusted.replaceAll(RegExp(r'^\s*#\s*auth-user-pass\b', multiLine: true), 'auth-user-pass');
+    } else if (!RegExp(r'^\s*auth-user-pass\b', multiLine: true).hasMatch(adjusted)) {
       adjusted += '\nauth-user-pass';
     }
 
-    // Resolve hostname to IP if needed
+    // 4) Normalize remote hostnames to IP and switch TCP port 443 -> UDP 1194
     adjusted = _normalizeRemoteHostsToIp(adjusted, serverIp);
 
     return adjusted;
   }
 
-  /// Normalize remote hosts to IP addresses
+  /// Request VPN permission from the system
+  Future<bool> _requestVpnPermission() async {
+    try {
+      // The openvpn_flutter plugin handles permission requests internally
+      // when connect() is called. We return true here and let the plugin
+      // handle the permission dialog. If permission is denied, the plugin
+      // will emit an error stage that we handle in _handleNativeStage.
+      return true;
+    } catch (e) {
+      print('❌ VPN permission request failed: $e');
+      return false;
+    }
+  }
+
+  /// Normalize remote hosts to IP addresses and switch default port to 1194 for UDP
+  /// 
+  /// This method replaces ALL remote directives in the config with a single one using
+  /// the provided serverIp. This is safe because:
+  /// 1. VpnGateApiService provides pre-resolved IP addresses in server.ip
+  /// 2. We prioritize the most reliable server from our intelligent scoring
+  /// 3. Multiple remote lines are replaced to ensure consistent connection attempts
   String _normalizeRemoteHostsToIp(String config, String serverIp) {
-    // Replace hostname with IP in remote lines
-    final remoteRegex = RegExp(r'^remote\s+(\S+)\s+(\d+)', multiLine: true);
+    final remoteRegex = RegExp(r'^\s*remote\s+(\S+)\s+(\d+)', multiLine: true);
     return config.replaceAllMapped(remoteRegex, (match) {
       final port = match.group(2)!;
-      return 'remote $serverIp $port';
+      final newPort = (port == '443') ? '1194' : port; // Switch TCP 443 to UDP 1194
+      return 'remote $serverIp $newPort';
     });
   }
 
@@ -257,8 +307,8 @@ class VpnController extends StateNotifier<VpnState> {
         );
       } else if (stageStr.contains('reconnecting')) {
         _set(VpnState.reconnecting);
-      } else if (stageStr.contains('auth') || stageStr.contains('failed')) {
-        _lastError = 'Authentication failed - check server credentials';
+      } else if (stageStr.contains('auth') || stageStr.contains('authentication') || stageStr.contains('credential')) {
+        _lastError = 'Authentication failed - using vpn/vpn credentials';
         _set(VpnState.failed);
       } else if (stageStr.contains('timeout') || stageStr.contains('timed out')) {
         _lastError = 'Connection timeout - server did not respond';
@@ -269,8 +319,8 @@ class VpnController extends StateNotifier<VpnState> {
       } else if (stageStr.contains('device') || stageStr.contains('supported')) {
         _lastError = 'Device not supported for VPN connections';
         _set(VpnState.failed);
-      } else if (stageStr.contains('permission') || stageStr.contains('denied')) {
-        _lastError = 'VPN permission denied - please grant VPN access';
+      } else if (stageStr.contains('permission') || stageStr.contains('denied') || stageStr.contains('unauthorized')) {
+        _lastError = 'VPN permission denied - please grant VPN access in Android settings';
         _set(VpnState.failed);
       } else if (stageStr.contains('server') || stageStr.contains('unreachable')) {
         _lastError = 'Server unreachable - trying next server';

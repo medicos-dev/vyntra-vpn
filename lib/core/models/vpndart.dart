@@ -164,6 +164,34 @@ class AllServers {
     data['OpenVPN_ConfigData_Base64'] = OpenVPN_ConfigData_Base64;
     return data;
   }
+
+  // Calculate intelligent score based on ping, speed, and protocol preference
+  double get intelligentScore {
+    if (Score != null && Score! > 0) return Score!.toDouble();
+    
+    // Calculate score based on ping (lower is better) and speed (higher is better)
+    final pingScore = (Ping != null && Ping! > 0) ? (1000.0 / Ping!.clamp(1, 1000)) : 0.0;
+    final speedScore = (Speed != null && Speed! > 0) ? (Speed! / 1000000.0) : 0.0; // Convert to Mbps
+    
+    // Protocol bonus: UDP gets higher priority (avoids TCP meltdown)
+    final protocolBonus = hasUdpSupport ? 1.5 : 1.0;
+    
+    return (pingScore * 0.7 + speedScore * 0.3) * 1000 * protocolBonus;
+  }
+
+  // Check if server supports UDP (based on common VPNGate patterns)
+  bool get hasUdpSupport {
+    // VPNGate servers typically support both TCP and UDP
+    // We'll assume UDP support unless explicitly TCP-only
+    return !(HostName?.toLowerCase().contains('tcp') ?? false) && 
+           !(HostName?.toLowerCase().contains('443') ?? false);
+  }
+
+  // Check if server has valid OpenVPN config
+  bool get hasValidConfig => 
+      OpenVPN_ConfigData_Base64 != null && 
+      OpenVPN_ConfigData_Base64!.isNotEmpty &&
+      OpenVPN_ConfigData_Base64!.length > 100; // Basic validation
 }
 
 class CloudflareWarp {

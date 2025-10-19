@@ -69,12 +69,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         controller: ctrl,
       );
       await _watchdog!.start();
-      // On app start: hard-refresh unless already connected (then do a soft load)
-      if (ctrl.current == VpnState.connected) {
-        await _loadServers();
-      } else {
-        await _retryLoadServers();
-      }
+      // Only load servers on startup, don't auto-connect
+      await _loadServers();
     });
   }
 
@@ -99,7 +95,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       final List<AllServers> fetched = await APIs.getVPNServers();
       if (mounted) {
         setState(() {
-          fetched.sort((a, b) => (a.Ping ?? 9999).compareTo(b.Ping ?? 9999));
+          // Sort by intelligent score (descending) then by ping (ascending)
+          fetched.sort((a, b) {
+            final scoreComparison = b.intelligentScore.compareTo(a.intelligentScore);
+            if (scoreComparison != 0) return scoreComparison;
+            return (a.Ping ?? 9999).compareTo(b.Ping ?? 9999);
+          });
           // Map to existing VpnServer shape only where needed; keep original keys for connect path
           servers = fetched.map((s) => VpnServer(
             id: s.HostName ?? '',
@@ -117,7 +118,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         });
         print('🏠 Home screen loaded ${servers.length} servers (vpndart/APIs)');
         if (servers.isNotEmpty) {
-          print('🚀 Fastest server: ${servers.first.hostname} (${servers.first.country}) - ${servers.first.pingMs}ms');
+          final bestServer = fetched.first;
+          print('🚀 Best server: ${bestServer.HostName} (${bestServer.CountryLong}) - Score: ${bestServer.intelligentScore.toStringAsFixed(1)}, Ping: ${bestServer.Ping}ms, Speed: ${(bestServer.Speed ?? 0) / 1000000}Mbps');
         }
       }
     } catch (e) {
@@ -140,7 +142,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       final List<AllServers> fetched = await APIs.getVPNServers();
       if (mounted) {
         setState(() {
-          fetched.sort((a, b) => (a.Ping ?? 9999).compareTo(b.Ping ?? 9999));
+          // Sort by intelligent score (descending) then by ping (ascending)
+          fetched.sort((a, b) {
+            final scoreComparison = b.intelligentScore.compareTo(a.intelligentScore);
+            if (scoreComparison != 0) return scoreComparison;
+            return (a.Ping ?? 9999).compareTo(b.Ping ?? 9999);
+          });
           servers = fetched.map((s) => VpnServer(
             id: s.HostName ?? '',
             name: s.HostName ?? '',

@@ -9,23 +9,29 @@ class ReconnectWatchdog {
   StreamSubscription? _stateSub;
   Timer? _backoffTimer;
   int _attempt = 0;
+  bool _isInitialized = false;
 
   ReconnectWatchdog({required this.controller});
 
   Future<void> start() async {
     _connSub = Connectivity().onConnectivityChanged.listen((_) async {
-      if (controller.current != VpnState.connected) {
+      if (_isInitialized && controller.current != VpnState.connected) {
         _scheduleReconnect();
       }
     });
 
     // Listen to VPN state changes
     _stateSub = controller.stream.listen((s) {
-      if (s == VpnState.disconnected || s == VpnState.failed) {
+      if (_isInitialized && (s == VpnState.disconnected || s == VpnState.failed)) {
         _scheduleReconnect();
       } else if (s == VpnState.connected) {
         _resetBackoff();
       }
+    });
+
+    // Mark as initialized after a short delay to prevent auto-reconnect on startup
+    Timer(const Duration(seconds: 3), () {
+      _isInitialized = true;
     });
   }
 
