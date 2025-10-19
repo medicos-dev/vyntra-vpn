@@ -14,7 +14,11 @@ import 'package:vyntra_app_aiks/core/models/vpndart.dart';
 
 final vpngateProvider = Provider((ref) => VpnGateService());
 final unifiedVpnProvider = Provider((ref) => UnifiedVpnService());
-final vpnControllerProvider = Provider((ref) => VpnController());
+final vpnControllerProvider = Provider((ref) {
+  final controller = VpnController();
+  controller.init(); // Initialize asynchronously
+  return controller;
+});
 
 class HomeScreen extends ConsumerStatefulWidget {
   final void Function(ThemeMode) onThemeChange;

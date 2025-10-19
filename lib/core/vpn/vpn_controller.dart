@@ -9,7 +9,7 @@ import '../notify/notification_service.dart';
 enum VpnState { disconnected, connecting, connected, reconnecting, failed }
 
 class VpnController {
-  late final OpenVPN _engine;
+  OpenVPN? _engine;
   final SessionManager _sessionManager = SessionManager();
   final StreamController<VpnState> _stateCtrl = StreamController<VpnState>.broadcast();
   final StreamController<int> _secondsLeftCtrl = StreamController<int>.broadcast();
@@ -17,6 +17,7 @@ class VpnController {
   String _lastError = '';
   // Tracks session lifecycle via SessionManager only
   Timer? _countdown;
+  bool _isInitialized = false;
 
   // Reference-aligned native channels
   static const String _eventChannelVpnStage = 'vpnStage';
@@ -32,6 +33,8 @@ class VpnController {
   Stream<int> get secondsLeft => _secondsLeftCtrl.stream;
 
   Future<void> init() async {
+    if (_isInitialized) return;
+    
     try {
       _engine = OpenVPN(
         onVpnStatusChanged: (status) {},
@@ -50,7 +53,7 @@ class VpnController {
         },
       );
       
-      await _engine.initialize(
+      await _engine!.initialize(
         groupIdentifier: null,
         providerBundleIdentifier: null,
         localizedDescription: 'Vyntra VPN',
@@ -79,6 +82,8 @@ class VpnController {
           disconnect();
         }
       });
+      
+      _isInitialized = true;
     } catch (e) {
       _lastError = 'Failed to initialize VPN: $e';
       _set(VpnState.failed);
@@ -240,8 +245,16 @@ class VpnController {
         });
       } catch (_) {}
 
+      if (_engine == null) {
+        timeout.cancel();
+        _lastError = 'VPN engine not initialized';
+        _set(VpnState.failed);
+        if (!done.isCompleted) done.complete(false);
+        return false;
+      }
+
       try {
-        await _engine.connect(
+        await _engine!.connect(
           adjusted,
           'vpn',
           username: 'vpn',
@@ -275,7 +288,9 @@ class VpnController {
         return;
       }
       try { await _controlChannel.invokeMethod('stop'); } catch (_) {}
-      try { _engine.disconnect(); } catch (_) {}
+      if (_engine != null) {
+        try { _engine!.disconnect(); } catch (_) {}
+      }
       await _sessionManager.endSession();
       _stopCountdown();
       _set(VpnState.disconnected);
