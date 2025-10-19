@@ -40,21 +40,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   late Animation<double> _pulseAnimation;
   late Animation<double> _glowAnimation;
   bool _loadingServers = false;
-  List<dynamic> _lastCandidates = <dynamic>[];
-  int _nextIdx = 0;
-
-  void _prepareCandidates(List<dynamic> list) {
-    _lastCandidates = List<dynamic>.from(list);
-    _nextIdx = 0;
-  }
-
-  String? _getNextCountry() {
-    if (_lastCandidates.isEmpty) return null;
-    if (_nextIdx >= _lastCandidates.length) _nextIdx = 0;
-    final item = _lastCandidates[_nextIdx++] as Map<String, dynamic>;
-    final country = (item['CountryLong'] ?? '') as String;
-    return country.isNotEmpty ? country : null;
-  }
 
   @override
   void initState() {
@@ -82,7 +67,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       await ctrl.init();
       _watchdog = ReconnectWatchdog(
         controller: ctrl,
-        nextCountryProvider: () async => _getNextCountry(),
       );
       await _watchdog!.start();
       // On app start: hard-refresh unless already connected (then do a soft load)
@@ -183,85 +167,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   }
 
   Future<void> _connectBest() async {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Connection initialised')),
-      );
-    }
     try {
-      List<AllServers> pool = [];
-      if (servers.isEmpty) {
-        pool = await APIs.getVPNServers();
-      } else {
-        // Convert existing VpnServer list back to AllServers shape minimally
-        pool = servers.map((s) => AllServers(
-          HostName: s.hostname,
-          IP: s.ip,
-          CountryLong: s.country,
-          Score: s.score,
-          Ping: s.pingMs,
-          Speed: s.speedBps,
-          HasConfig: (s.ovpnBase64 != null && s.ovpnBase64!.isNotEmpty),
-          OpenVPN_ConfigData_Base64: s.ovpnBase64,
-        )).toList();
-      }
-      if (pool.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No servers available. Pull to refresh.')),
-          );
-        }
-      return;
-    }
-    
-      pool.sort((a, b) {
-        final int ap = (a.Ping ?? 9999);
-        final int bp = (b.Ping ?? 9999);
-        if (ap != bp) return ap.compareTo(bp);
-        final int aspeed = (a.Speed ?? 0);
-        final int bspeed = (b.Speed ?? 0);
-        return bspeed.compareTo(aspeed);
-      });
-
-      // Build candidates with original keys for watchdog
-      final all = pool
-          .where((s) => (s.OpenVPN_ConfigData_Base64 != null && s.OpenVPN_ConfigData_Base64!.isNotEmpty))
-          .map((s) => {
-                'HostName': s.HostName ?? '',
-                'CountryLong': s.CountryLong ?? '',
-                'Ping': s.Ping ?? 9999,
-                'Speed': s.Speed ?? 0,
-                'OpenVPN_ConfigData_Base64': s.OpenVPN_ConfigData_Base64 ?? '',
-              })
-          .toList();
-      if (all.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No OpenVPN configs available. Try refresh.')),
-          );
-        }
-        return;
-      }
-      _prepareCandidates(all);
-
-      // First candidate only
       final ctrl = ref.read(vpnControllerProvider);
-      final first = all.first;
-      print('🎯 Attempt 1/1: ${first['HostName']} (${first['CountryLong']})');
-      print('📊 Server stats: ${(((first['Speed'] as int) / 1e6)).toStringAsFixed(1)} Mbps, ${(first['Ping'] as int)}ms');
-
-      final ok = await ctrl.connect(country: (first['CountryLong'] as String?) ?? '');
+      
+      // Connect with the first available server (no specific country filter)
+      final ok = await ctrl.connect();
+      
       if (!ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Connection failed. Try another server.')),
+          const SnackBar(content: Text('Connection failed. Try again.')),
         );
       }
     } catch (e) {
       print('❌ Connect Fastest failed: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load servers: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to connect: $e')),
+        );
       }
     }
   }
@@ -485,22 +407,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(horizontal: 32),
-      child: GestureDetector(
-        onLongPress: () async {
-          // Hidden quick-connect for experiments
-          try {
-            final ctrl = ref.read(vpnControllerProvider);
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Connecting test profile')),
-              );
-            }
-            await ctrl.disconnect();
-            await ctrl.connect(country: 'Test');
-          } catch (_) {}
-        },
-        child: ElevatedButton(
-          onPressed: isLoading ? null : (isConnected ? _disconnect : (servers.isEmpty ? null : _connectBest)),
+      child: ElevatedButton(
+        onPressed: isLoading ? null : (isConnected ? _disconnect : (servers.isEmpty ? null : _connectBest)),
         style: ElevatedButton.styleFrom(
           backgroundColor: isConnected ? const Color(0xFFFF4444) : const Color(0xFF2196F3),
           foregroundColor: Colors.white,
@@ -538,7 +446,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                   ),
                 ],
               ),
-        ),
       ),
     );
   }
