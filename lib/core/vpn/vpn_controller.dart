@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:openvpn_flutter/openvpn_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import '../network/vpngate_api_service.dart';
 import '../notify/notification_service.dart';
 import 'session_manager.dart';
@@ -72,7 +73,7 @@ class VpnController extends StateNotifier<VpnState> {
         _set(VpnState.failed);
         return false;
       }
-
+      
       // Filter by country if specified
       List<VpnGateServer> filteredServers = servers;
       if (country != null && country.isNotEmpty) {
@@ -144,24 +145,30 @@ class VpnController extends StateNotifier<VpnState> {
       throw Exception('No OpenVPN config available for ${server.hostName}');
     }
 
-    // Decode Base64 config directly
-    String decodedConfig;
+    // Step 1: Decode Base64 to UTF-8 string
+    String utf8DecodedConfig;
     try {
       final decodedBytes = base64.decode(server.openvpnConfigDataBase64!);
-      decodedConfig = utf8.decode(decodedBytes);
-      print('📄 Decoded config for ${server.hostName} (${decodedConfig.length} chars)');
+      utf8DecodedConfig = utf8.decode(decodedBytes);
+      print('📄 Decoded Base64 to UTF-8 for ${server.hostName} (${utf8DecodedConfig.length} chars)');
     } catch (e) {
-      throw Exception('Failed to decode Base64 config for ${server.hostName}: $e');
+      throw Exception('Failed to decode Base64 to UTF-8 for ${server.hostName}: $e');
     }
 
-    // Validate the decoded config
-    if (!_isValidOvpnConfig(decodedConfig)) {
+    // Step 2: Validate the UTF-8 decoded config
+    if (!_isValidOvpnConfig(utf8DecodedConfig)) {
       throw Exception('Invalid OpenVPN config for ${server.hostName} - missing essential directives');
     }
 
-    // Normalize the config
-    final normalizedConfig = _normalizeOvpnConfig(decodedConfig);
-    print('✅ Config normalized for ${server.hostName}');
+    // Step 3: Save the exact UTF-8 content to .ovpn file
+    final ovpnFile = await _saveOvpnFile(utf8DecodedConfig, server.hostName);
+    if (ovpnFile == null) {
+      throw Exception('Failed to save UTF-8 content to OVPN file for ${server.hostName}');
+    }
+
+    // Step 4: Normalize the config for connection (but keep original file intact)
+    final normalizedConfig = _normalizeOvpnConfig(utf8DecodedConfig);
+    print('✅ Config normalized for connection (original UTF-8 file preserved)');
 
     // Prepare config with mandatory UDP and credential modifications
     final preparedConfig = _prepareConfigFromString(normalizedConfig, server);
@@ -186,8 +193,8 @@ class VpnController extends StateNotifier<VpnState> {
     await _engine!.connect(
       preparedConfig, // The prepared config with UDP and credentials
       'vpn', // name
-      username: 'vpn', // CRITICAL: This must be passed
-      password: 'vpn', // CRITICAL: This must be passed
+      username: 'vpn', // Username for VPN authentication
+      password: 'vpn', // Password for VPN authentication
     );
 
     // Wait for connection confirmation (single wait period)
@@ -322,6 +329,59 @@ class VpnController extends StateNotifier<VpnState> {
     normalized = normalized.replaceAll(RegExp(r'\n{3,}'), '\n\n');
     
     return normalized.trim();
+  }
+
+  /// Save UTF-8 decoded config to .ovpn file (exact content)
+  Future<File?> _saveOvpnFile(String utf8DecodedConfig, String hostName) async {
+    try {
+      // Get the documents directory
+      final directory = await getApplicationDocumentsDirectory();
+      final ovpnDir = Directory('${directory.path}/ovpn_files');
+      
+      // Create directory if it doesn't exist
+      if (!await ovpnDir.exists()) {
+        await ovpnDir.create(recursive: true);
+      }
+      
+      // Clean up old files before saving new one
+      await _cleanupOldOvpnFiles(ovpnDir);
+      
+      // Create filename from hostname (sanitize for filesystem)
+      final sanitizedHostName = hostName.replaceAll(RegExp(r'[^\w\-_.]'), '_');
+      final fileName = '$sanitizedHostName.ovpn';
+      final file = File('${ovpnDir.path}/$fileName');
+      
+      // Write the exact UTF-8 decoded content to file
+      await file.writeAsString(utf8DecodedConfig);
+      
+      print('💾 Saved exact UTF-8 content to OVPN file: ${file.path} (${utf8DecodedConfig.length} chars)');
+      return file;
+    } catch (e) {
+      print('❌ Failed to save UTF-8 content to OVPN file for $hostName: $e');
+      return null;
+    }
+  }
+
+  /// Clean up old .ovpn files to prevent storage bloat
+  Future<void> _cleanupOldOvpnFiles(Directory ovpnDir) async {
+    try {
+      final files = await ovpnDir.list().toList();
+      final ovpnFiles = files.whereType<File>().where((file) => file.path.endsWith('.ovpn')).toList();
+      
+      // Keep only the 5 most recent files
+      if (ovpnFiles.length > 5) {
+        // Sort by modification time (newest first)
+        ovpnFiles.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+        
+        // Delete older files
+        for (int i = 5; i < ovpnFiles.length; i++) {
+          await ovpnFiles[i].delete();
+          print('🗑️ Deleted old OVPN file: ${ovpnFiles[i].path}');
+        }
+      }
+    } catch (e) {
+      print('⚠️ Failed to cleanup old OVPN files: $e');
+    }
   }
 
   /// Check internet reachability before attempting VPN connection
