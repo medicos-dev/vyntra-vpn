@@ -125,15 +125,9 @@ class VpnController extends StateNotifier<VpnState> {
 
   /// Attempt connection to a specific server
   Future<bool> _attemptConnection(VpnGateServer server) async {
-    // Decode OpenVPN config
-    final configData = server.openvpnConfigDataBase64;
-    if (configData == null || configData.isEmpty) {
+    // Validate server has config
+    if (server.openvpnConfigDataBase64 == null || server.openvpnConfigDataBase64!.isEmpty) {
       throw Exception('No OpenVPN config available for this server');
-    }
-
-    final ovpnConfig = VpnGateApiService.decodeOpenVpnConfig(configData);
-    if (ovpnConfig == null) {
-      throw Exception('Failed to decode OpenVPN configuration');
     }
 
     // Check internet reachability before attempting connection
@@ -142,8 +136,8 @@ class VpnController extends StateNotifier<VpnState> {
       throw Exception('No internet connection available - please check your network');
     }
 
-    // Apply OpenVPN3-compatible adjustments
-    final adjustedConfig = _applyOpenVpn3Adjustments(ovpnConfig, server.ip);
+    // Prepare config with mandatory UDP and credential modifications
+    final preparedConfig = _prepareConfig(server);
 
     // Start connection timeout
     _connectionTimeout?.cancel();
@@ -163,10 +157,10 @@ class VpnController extends StateNotifier<VpnState> {
 
     // Connect using OpenVPN Flutter with credentials
     await _engine!.connect(
-      adjustedConfig,
+      preparedConfig, // The prepared config with UDP and credentials
       'vpn', // name
-      username: 'vpn',
-      password: 'vpn',
+      username: 'vpn', // CRITICAL: This must be passed
+      password: 'vpn', // CRITICAL: This must be passed
     );
 
     // Wait for connection confirmation (single wait period)
@@ -203,19 +197,53 @@ class VpnController extends StateNotifier<VpnState> {
     }
   }
 
+  /// Prepare OpenVPN config with mandatory UDP and credential modifications
+  String _prepareConfig(VpnGateServer server) {
+    // 1. Decode the Base64 configuration
+    String config = VpnGateApiService.decodeOpenVpnConfig(server.openvpnConfigDataBase64!)!;
+    print('🔧 Original config protocol: ${RegExp(r'proto\s+\w+', caseSensitive: false).firstMatch(config)?.group(0) ?? 'none'}');
+
+    // 2. FORCE UDP PROTOCOL - CRITICAL fix for stalling issue
+    config = config.replaceAll(RegExp(r'proto\s+tcp', caseSensitive: false), 'proto udp');
+    config = config.replaceAll(RegExp(r'proto\s+tcp-client', caseSensitive: false), 'proto udp');
+    
+    // Ensure proto udp is present
+    if (!RegExp(r'proto\s+udp', caseSensitive: false).hasMatch(config)) {
+      config += '\nproto udp';
+    }
+    print('✅ Forced UDP protocol');
+
+    // 3. FORCE UDP PORT 1194 and ensure IP is used
+    final originalRemote = RegExp(r'remote\s+[^\s]+\s+\d+', multiLine: true, caseSensitive: false).firstMatch(config)?.group(0);
+    config = config.replaceAll(
+      RegExp(r'remote\s+[^\s]+\s+\d+', multiLine: true, caseSensitive: false), 
+      'remote ${server.ip} 1194'
+    );
+    print('✅ Remote line: $originalRemote → remote ${server.ip} 1194');
+
+    // 4. Append OpenVPN's auth-user-pass directive
+    if (!config.contains('auth-user-pass')) {
+      config += '\nauth-user-pass';
+      print('✅ Added auth-user-pass directive');
+    } else {
+      print('✅ auth-user-pass already present');
+    }
+
+    // 5. Clean up other known problem directives
+    config = config.replaceAll(RegExp(r'^\s*auth-user-pass-verify\b', multiLine: true), '#auth-user-pass-verify');
+    config = config.replaceAll(RegExp(r'^\s*pkcs12\b', multiLine: true), '#pkcs12');
+
+    // 6. Apply additional OpenVPN3/Android fixes
+    final finalConfig = _applyOpenVpn3Adjustments(config, server.ip);
+    print('🔧 Final config prepared for ${server.hostName}');
+    return finalConfig;
+  }
+
   /// Apply OpenVPN3-compatible adjustments to config
   String _applyOpenVpn3Adjustments(String config, String serverIp) {
     String adjusted = config;
 
-    // 1) Force UDP: replace any tcp/tcp-client with udp, ensure proto udp present
-    adjusted = adjusted
-        .replaceAll(RegExp(r'^\s*proto\s+tcp-client\s*$', multiLine: true), 'proto udp')
-        .replaceAll(RegExp(r'^\s*proto\s+tcp\s*$', multiLine: true), 'proto udp');
-    if (!RegExp(r'^\s*proto\s+udp\s*$', multiLine: true).hasMatch(adjusted)) {
-      adjusted += '\nproto udp';
-    }
-
-    // 2) Add OpenVPN3/Android fixes and modern ciphers
+    // Add OpenVPN3/Android fixes and modern ciphers
     final adjustments = <String>[
       'pull-filter ignore "comp-lzo"',
       'pull-filter ignore "ip-win32"', // ignore Windows-only option
@@ -236,16 +264,6 @@ class VpnController extends StateNotifier<VpnState> {
         adjusted += '\n$line';
       }
     }
-
-    // 3) Handle auth-user-pass: ensure present (plugin supplies credentials)
-    if (RegExp(r'^\s*#\s*auth-user-pass\b', multiLine: true).hasMatch(adjusted)) {
-      adjusted = adjusted.replaceAll(RegExp(r'^\s*#\s*auth-user-pass\b', multiLine: true), 'auth-user-pass');
-    } else if (!RegExp(r'^\s*auth-user-pass\b', multiLine: true).hasMatch(adjusted)) {
-      adjusted += '\nauth-user-pass';
-    }
-
-    // 4) Normalize remote hostnames to IP and switch TCP port 443 -> UDP 1194
-    adjusted = _normalizeRemoteHostsToIp(adjusted, serverIp);
 
     return adjusted;
   }
@@ -293,21 +311,6 @@ class VpnController extends StateNotifier<VpnState> {
     }
   }
 
-  /// Normalize remote hosts to IP addresses and switch default port to 1194 for UDP
-  /// 
-  /// This method replaces ALL remote directives in the config with a single one using
-  /// the provided serverIp. This is safe because:
-  /// 1. VpnGateApiService provides pre-resolved IP addresses in server.ip
-  /// 2. We prioritize the most reliable server from our intelligent scoring
-  /// 3. Multiple remote lines are replaced to ensure consistent connection attempts
-  String _normalizeRemoteHostsToIp(String config, String serverIp) {
-    final remoteRegex = RegExp(r'^\s*remote\s+(\S+)\s+(\d+)', multiLine: true);
-    return config.replaceAllMapped(remoteRegex, (match) {
-      final port = match.group(2)!;
-      final newPort = (port == '443') ? '1194' : port; // Switch TCP 443 to UDP 1194
-      return 'remote $serverIp $newPort';
-    });
-  }
 
   /// Handle native stage changes
   void _handleNativeStage(dynamic stage) {
