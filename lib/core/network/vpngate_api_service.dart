@@ -1,80 +1,139 @@
+import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../models/vpngate_server_l2tp.dart';
+
+class VpnGateServer {
+  final String hostName;
+  final String ip;
+  final int score;
+  final int ping;
+  final int speed;
+  final String countryLong;
+  final String countryShort;
+  final int numVpnSessions;
+  final int uptime;
+  final int totalUsers;
+  final int totalTraffic;
+  final String logType;
+  final String operator;
+  final String message;
+  final String? openvpnConfigDataBase64;
+
+  VpnGateServer({
+    required this.hostName,
+    required this.ip,
+    required this.score,
+    required this.ping,
+    required this.speed,
+    required this.countryLong,
+    required this.countryShort,
+    required this.numVpnSessions,
+    required this.uptime,
+    required this.totalUsers,
+    required this.totalTraffic,
+    required this.logType,
+    required this.operator,
+    required this.message,
+    this.openvpnConfigDataBase64,
+  });
+
+  factory VpnGateServer.fromCsvLine(List<String> fields) {
+    return VpnGateServer(
+      hostName: fields[0],
+      ip: fields[1],
+      score: int.tryParse(fields[2]) ?? 0,
+      ping: int.tryParse(fields[3]) ?? 9999,
+      speed: int.tryParse(fields[4]) ?? 0,
+      countryLong: fields[5],
+      countryShort: fields[6],
+      numVpnSessions: int.tryParse(fields[7]) ?? 0,
+      uptime: int.tryParse(fields[8]) ?? 0,
+      totalUsers: int.tryParse(fields[9]) ?? 0,
+      totalTraffic: int.tryParse(fields[10]) ?? 0,
+      logType: fields[11],
+      operator: fields[12],
+      message: fields[13],
+      openvpnConfigDataBase64: fields.length > 14 && fields[14].isNotEmpty ? fields[14] : null,
+    );
+  }
+
+  // Calculate intelligent score based on ping and speed
+  double get intelligentScore {
+    if (score > 0) return score.toDouble();
+    
+    // Calculate score based on ping (lower is better) and speed (higher is better)
+    final pingScore = (ping > 0) ? (1000.0 / ping.clamp(1, 1000)) : 0.0;
+    final speedScore = (speed > 0) ? (speed / 1000000.0) : 0.0; // Convert to Mbps
+    
+    return (pingScore * 0.7 + speedScore * 0.3) * 1000;
+  }
+
+  // Check if server has valid OpenVPN config
+  bool get hasValidConfig => 
+      openvpnConfigDataBase64 != null && 
+      openvpnConfigDataBase64!.isNotEmpty &&
+      openvpnConfigDataBase64!.length > 100; // Basic validation
+}
 
 class VpnGateApiService {
   static const String _apiUrl = 'https://www.vpngate.net/api/iphone/';
-  
+
   /// Fetch VPN servers from VPNGate API
   static Future<List<VpnGateServer>> fetchVpnGateServers() async {
     try {
-      final response = await http.get(
-        Uri.parse(_apiUrl),
-        headers: {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)'},
-      ).timeout(const Duration(seconds: 30));
-
+      final response = await http.get(Uri.parse(_apiUrl));
+      
       if (response.statusCode != 200) {
         throw Exception('Failed to fetch VPN servers: ${response.statusCode}');
       }
 
       return _parseVpnGateResponse(response.body);
     } catch (e) {
-      throw Exception('Error fetching VPN servers: $e');
+      print('Error fetching VPN servers: $e');
+      return [];
     }
   }
 
   /// Parse the raw VPNGate API response
   static List<VpnGateServer> _parseVpnGateResponse(String responseBody) {
-    final List<VpnGateServer> servers = [];
-    final List<String> lines = responseBody.split('\n');
+    final lines = responseBody.split('\n');
+    final servers = <VpnGateServer>[];
+
+    // Skip header lines and find the data section
+    bool inDataSection = false;
     
-    // Find the header line (starts with #HostName,IP,Score,Ping,Speed...)
-    int headerIndex = -1;
-    for (int i = 0; i < lines.length; i++) {
-      if (lines[i].startsWith('#HostName,IP,Score,Ping,Speed')) {
-        headerIndex = i;
+    for (final line in lines) {
+      final trimmedLine = line.trim();
+      
+      // Skip empty lines and comments
+      if (trimmedLine.isEmpty || trimmedLine.startsWith('#')) {
+        continue;
+      }
+      
+      // Look for the data section marker
+      if (trimmedLine.startsWith('*vpn_servers')) {
+        inDataSection = true;
+        continue;
+      }
+      
+      // Stop at the end marker
+      if (trimmedLine.startsWith('*')) {
         break;
       }
-    }
-
-    if (headerIndex == -1) {
-      throw Exception('Could not find header in VPNGate response');
-    }
-
-    // Parse header to get column indices
-    final headerLine = lines[headerIndex].substring(1); // Remove the # prefix
-    final List<String> headers = headerLine.split(',');
-    
-    final Map<String, int> columnIndex = {};
-    for (int i = 0; i < headers.length; i++) {
-      columnIndex[headers[i].trim()] = i;
-    }
-
-    // Parse data rows
-    for (int i = headerIndex + 1; i < lines.length; i++) {
-      final String line = lines[i].trim();
-      if (line.isEmpty || line.startsWith('#')) continue;
-
-      try {
-        final List<String> values = _parseCsvLine(line);
-        if (values.length < headers.length) continue;
-
-        final server = VpnGateServer(
-          hostName: _getValue(values, columnIndex, 'HostName') ?? '',
-          ip: _getValue(values, columnIndex, 'IP') ?? '',
-          countryLong: _getValue(values, columnIndex, 'CountryLong') ?? '',
-          l2tpSupported: _getValue(values, columnIndex, 'L2TP'),
-          ping: _getIntValue(values, columnIndex, 'Ping'),
-          speed: _getIntValue(values, columnIndex, 'Speed'),
-          score: _getIntValue(values, columnIndex, 'Score'),
-        );
-
-        // Only add servers that support L2TP
-        if (server.hasL2tpSupport) {
-          servers.add(server);
+      
+      // Parse server data
+      if (inDataSection) {
+        try {
+          final fields = _parseCsvLine(trimmedLine);
+          if (fields.length >= 14) {
+            final server = VpnGateServer.fromCsvLine(fields);
+            if (server.hasValidConfig) {
+              servers.add(server);
+            }
+          }
+        } catch (e) {
+          print('Error parsing server line: $trimmedLine - $e');
+          continue;
         }
-      } catch (e) {
-        // Skip malformed rows
-        continue;
       }
     }
 
@@ -83,71 +142,59 @@ class VpnGateApiService {
 
   /// Parse a CSV line handling quoted fields
   static List<String> _parseCsvLine(String line) {
-    final List<String> parts = [];
-    bool inQuote = false;
-    String currentPart = '';
+    final fields = <String>[];
+    final buffer = StringBuffer();
+    bool inQuotes = false;
     
     for (int i = 0; i < line.length; i++) {
       final char = line[i];
       
       if (char == '"') {
-        inQuote = !inQuote;
-      } else if (char == ',' && !inQuote) {
-        parts.add(currentPart);
-        currentPart = '';
+        inQuotes = !inQuotes;
+      } else if (char == ',' && !inQuotes) {
+        fields.add(buffer.toString().trim());
+        buffer.clear();
       } else {
-        currentPart += char;
+        buffer.write(char);
       }
     }
     
-    parts.add(currentPart); // Add the last part
-    return parts;
+    // Add the last field
+    fields.add(buffer.toString().trim());
+    
+    return fields;
   }
 
-  /// Get string value from CSV row
-  static String? _getValue(List<String> values, Map<String, int> columnIndex, String columnName) {
-    final int? index = columnIndex[columnName];
-    if (index == null || index >= values.length) return null;
-    final String value = values[index].trim();
-    return value.isEmpty ? null : value;
-  }
-
-  /// Get integer value from CSV row
-  static int? _getIntValue(List<String> values, Map<String, int> columnIndex, String columnName) {
-    final String? value = _getValue(values, columnIndex, columnName);
-    if (value == null) return null;
-    return int.tryParse(value);
-  }
-
-  /// Get the best L2TP server based on ping and speed
-  static VpnGateServer? getBestL2tpServer(List<VpnGateServer> servers) {
-    if (servers.isEmpty) return null;
-
-    // Filter servers with valid metrics
-    final validServers = servers.where((s) => 
-      s.ping != null && s.ping! > 0 && 
-      s.speed != null && s.speed! > 0
-    ).toList();
-
-    if (validServers.isEmpty) {
-      // Return first server if no valid metrics
-      return servers.first;
-    }
-
-    // Sort by ping (lower is better), then by speed (higher is better)
-    validServers.sort((a, b) {
-      final int pingCompare = a.ping!.compareTo(b.ping!);
-      if (pingCompare != 0) return pingCompare;
-      return b.speed!.compareTo(a.speed!);
-    });
-
-    return validServers.first;
-  }
-
-  /// Get servers by country
+  /// Get servers filtered by country
   static List<VpnGateServer> getServersByCountry(List<VpnGateServer> servers, String country) {
-    return servers.where((s) => 
-      s.countryLong.toLowerCase().contains(country.toLowerCase())
+    return servers.where((server) => 
+        server.countryLong.toLowerCase().contains(country.toLowerCase()) ||
+        server.countryShort.toLowerCase().contains(country.toLowerCase())
     ).toList();
+  }
+
+  /// Get the best server based on intelligent scoring
+  static VpnGateServer? getBestServer(List<VpnGateServer> servers) {
+    if (servers.isEmpty) return null;
+    
+    // Sort by intelligent score (descending) then by ping (ascending)
+    servers.sort((a, b) {
+      final scoreComparison = b.intelligentScore.compareTo(a.intelligentScore);
+      if (scoreComparison != 0) return scoreComparison;
+      return a.ping.compareTo(b.ping);
+    });
+    
+    return servers.first;
+  }
+
+  /// Decode Base64 OpenVPN config to readable format
+  static String? decodeOpenVpnConfig(String base64Config) {
+    try {
+      final decoded = utf8.decode(base64Decode(base64Config));
+      return decoded;
+    } catch (e) {
+      print('Error decoding OpenVPN config: $e');
+      return null;
+    }
   }
 }

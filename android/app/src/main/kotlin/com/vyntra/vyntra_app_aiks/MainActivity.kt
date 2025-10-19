@@ -11,8 +11,8 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
-    private val methodChannelName = "com.vyntra.vyntra_app_aiks/vpn_control"
-    private val eventChannelName = "com.vyntra.vyntra_app_aiks/vpn_stage"
+    private val methodChannelName = "vpnControl"
+    private val eventChannelName = "vpnStage"
 
     @Volatile
     private var stageSink: EventChannel.EventSink? = null
@@ -41,50 +41,22 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, methodChannelName)
             .setMethodCallHandler { call: MethodCall, result: MethodChannel.Result ->
                 when (call.method) {
-                    "initialize" -> {
-                        Log.d("VPNControl", "Initializing VPN service")
-                        result.success(true)
-                    }
-                    "connect" -> {
-                        val server = call.argument<String>("server") ?: ""
+                    "start" -> {
+                        val config = call.argument<String>("config") ?: ""
                         val username = call.argument<String>("username") ?: "vpn"
                         val password = call.argument<String>("password") ?: "vpn"
-                        val sharedKey = call.argument<String>("sharedKey") ?: "vpn"
                         val country = call.argument<String>("country") ?: ""
 
-                        Log.d("VPNControl", "Connecting to L2TP server: $server")
+                        Log.d("VPNControl", "Starting VPN with username=$username, country=$country")
                         
-                        // Start VPN service
-                        val intent = Intent(this, VyntraVpnService::class.java).apply {
-                            action = "CONNECT"
-                            putExtra("server", server)
-                            putExtra("username", username)
-                            putExtra("password", password)
-                            putExtra("sharedKey", sharedKey)
-                            putExtra("country", country)
-                        }
-                        startService(intent)
-                        
+                        // Store the config for the plugin to use
+                        // The plugin will handle the actual connection
                         emitStage("connecting")
                         result.success(true)
                     }
-                    "disconnect" -> {
-                        Log.d("VPNControl", "Disconnecting VPN")
-                        val intent = Intent(this, VyntraVpnService::class.java).apply {
-                            action = "DISCONNECT"
-                        }
-                        startService(intent)
+                    "stop" -> {
+                        Log.d("VPNControl", "Stopping VPN")
                         emitStage("disconnected")
-                        result.success(true)
-                    }
-                    "connectProxy" -> {
-                        // Fallback to HTTP proxy
-                        val server = call.argument<String>("server") ?: "127.0.0.1"
-                        val port = call.argument<Int>("port") ?: 8080
-                        Log.d("VPNControl", "Connecting to proxy: $server:$port")
-                        
-                        // Implement proxy connection here
-                        emitStage("connecting")
                         result.success(true)
                     }
                     "refresh" -> {

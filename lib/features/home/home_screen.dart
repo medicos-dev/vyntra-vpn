@@ -175,7 +175,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       
       if (!ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Connection failed. Try again.')),
+          SnackBar(content: Text('Connection failed: ${ctrl.lastError}')),
         );
       }
     } catch (e) {
@@ -592,8 +592,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     final ctrl = ref.read(vpnControllerProvider);
     
     return StreamBuilder<VpnState>(
-      stream: ctrl.state,
-      initialData: ctrl.current,
+      stream: ref.read(vpnControllerProvider).stream,
+      initialData: ref.read(vpnControllerProvider).current,
       builder: (context, snapshot) {
         final vpnState = snapshot.data ?? VpnState.disconnected;
         

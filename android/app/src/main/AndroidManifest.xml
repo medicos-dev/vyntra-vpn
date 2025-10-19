@@ -39,26 +39,15 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- Native L2TP/IPSec VPN Service -->
         <service
-            android:name=".VyntraVpnService"
+            android:name="com.github.openvpn.OpenVPNService"
             android:permission="android.permission.BIND_VPN_SERVICE"
-            android:exported="false">
+            android:exported="false"
+            android:foregroundServiceType="vpn">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
-        
-        <!-- === OLD OPENVPN CODE (for reference) === -->
-        <!-- <service
-            android:name="com.github.openvpn.OpenVPNService"
-            android:permission="android.permission.BIND_VPN_SERVICE"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.net.VpnService" />
-            </intent-filter>
-        </service> -->
-        <!-- === END OLD OPENVPN CODE === -->
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

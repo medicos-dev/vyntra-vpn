@@ -6,6 +6,7 @@ class ReconnectWatchdog {
   final VpnController controller;
 
   StreamSubscription? _connSub;
+  StreamSubscription? _stateSub;
   Timer? _backoffTimer;
   int _attempt = 0;
 
@@ -18,7 +19,8 @@ class ReconnectWatchdog {
       }
     });
 
-    controller.state.listen((s) {
+    // Listen to VPN state changes
+    _stateSub = controller.stream.listen((s) {
       if (s == VpnState.disconnected || s == VpnState.failed) {
         _scheduleReconnect();
       } else if (s == VpnState.connected) {
@@ -32,7 +34,7 @@ class ReconnectWatchdog {
     final int seconds = _nextBackoffSeconds();
     _backoffTimer = Timer(Duration(seconds: seconds), () async {
       if (controller.current != VpnState.connected) {
-        await controller.connect();
+        await controller.connect(); // No country parameter
       }
     });
   }
@@ -49,6 +51,7 @@ class ReconnectWatchdog {
 
   Future<void> dispose() async {
     await _connSub?.cancel();
+    await _stateSub?.cancel();
     _backoffTimer?.cancel();
   }
 }
