@@ -3,6 +3,7 @@ package com.vyntra.vyntra_app_aiks
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -41,14 +42,44 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call: MethodCall, result: MethodChannel.Result ->
                 when (call.method) {
                     "start" -> {
-                        // No-op: Dart side connects via plugin; we just emit a stage hint
-                        emitStage("connecting")
-                        result.success(null)
+                        val config = call.argument<String>("config") ?: ""
+                        val username = call.argument<String>("username") ?: "vpn"
+                        val password = call.argument<String>("password") ?: "vpn"
+                        val country = call.argument<String>("country") ?: ""
+
+                        Log.d("VPNControl", "Starting VPN with username=$username, country=$country")
+                        
+                        try {
+                            // Start OpenVPN service with the provided config
+                            val intent = Intent(this, com.github.openvpn.OpenVPNService::class.java).apply {
+                                action = "START_PROFILE"
+                                putExtra("config", config)
+                                putExtra("username", username)
+                                putExtra("password", password)
+                                putExtra("country", country)
+                            }
+                            startService(intent)
+                            emitStage("connecting")
+                            result.success(true)
+                        } catch (e: Exception) {
+                            Log.e("VPNControl", "Failed to start VPN service", e)
+                            emitStage("denied")
+                            result.error("START_FAILED", "Failed to start VPN service: ${e.message}", e)
+                        }
                     }
                     "stop" -> {
-                        // No-op: Dart side disconnects via plugin fallback
-                        emitStage("disconnected")
-                        result.success(null)
+                        Log.d("VPNControl", "Stopping VPN")
+                        try {
+                            val intent = Intent(this, com.github.openvpn.OpenVPNService::class.java).apply {
+                                action = "STOP_PROFILE"
+                            }
+                            startService(intent)
+                            emitStage("disconnected")
+                            result.success(true)
+                        } catch (e: Exception) {
+                            Log.e("VPNControl", "Failed to stop VPN service", e)
+                            result.error("STOP_FAILED", "Failed to stop VPN service: ${e.message}", e)
+                        }
                     }
                     "refresh" -> {
                         // Re-emit latest known stage
