@@ -39,6 +39,12 @@ class VpnGateServer {
   });
 
   factory VpnGateServer.fromCsvLine(List<String> fields) {
+    // Debug: Print field mapping
+    print('🔍 Field mapping:');
+    for (int i = 0; i < fields.length && i < 15; i++) {
+      print('  [$i]: "${fields[i]}"');
+    }
+    
     return VpnGateServer(
       hostName: fields[0],
       ip: fields[1],
@@ -147,23 +153,31 @@ class VpnGateApiService {
       if (inDataSection) {
         try {
           final fields = _parseCsvLine(trimmedLine);
+          print('🔍 Parsed ${fields.length} fields: ${fields.take(5).join(', ')}...');
+          
           if (fields.length >= 14) {
             final server = VpnGateServer.fromCsvLine(fields);
             if (server.hasValidConfig) {
               servers.add(server);
+              print('✅ Added server: ${server.hostName} (Score: ${server.score}, Ping: ${server.ping}ms)');
+            } else {
+              print('⚠️ Skipped server ${server.hostName}: Invalid config');
             }
+          } else {
+            print('⚠️ Skipped line: Only ${fields.length} fields (need 14+)');
           }
         } catch (e) {
-          print('Error parsing server line: $trimmedLine - $e');
+          print('❌ Error parsing server line: $trimmedLine - $e');
           continue;
         }
       }
     }
 
+    print('📊 Total servers parsed: ${servers.length}');
     return servers;
   }
 
-  /// Parse a CSV line handling quoted fields
+  /// Parse a CSV line handling quoted fields and double commas
   static List<String> _parseCsvLine(String line) {
     final fields = <String>[];
     final buffer = StringBuffer();
@@ -175,7 +189,8 @@ class VpnGateApiService {
       if (char == '"') {
         inQuotes = !inQuotes;
       } else if (char == ',' && !inQuotes) {
-        fields.add(buffer.toString().trim());
+        final field = buffer.toString().trim();
+        fields.add(field);
         buffer.clear();
       } else {
         buffer.write(char);
@@ -183,7 +198,18 @@ class VpnGateApiService {
     }
     
     // Add the last field
-    fields.add(buffer.toString().trim());
+    final lastField = buffer.toString().trim();
+    fields.add(lastField);
+    
+    // Clean up trailing empty fields (double commas issue)
+    while (fields.isNotEmpty && fields.last.isEmpty) {
+      fields.removeLast();
+    }
+    
+    // Ensure we have at least 15 fields (including the Base64 config)
+    while (fields.length < 15) {
+      fields.add('');
+    }
     
     return fields;
   }

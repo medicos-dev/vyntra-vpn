@@ -10,6 +10,7 @@ import '../settings/settings_screen.dart';
 import 'package:vyntra_app_aiks/core/network/apis.dart';
 import 'package:vyntra_app_aiks/core/models/vpndart.dart';
 import '../../core/constants/server_constants.dart';
+import '../../core/network/vpngate_api_service.dart';
 
 final vpngateProvider = Provider((ref) => VpnGateService());
 final unifiedVpnProvider = Provider((ref) => UnifiedVpnService());
@@ -93,38 +94,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
-      final List<AllServers> fetched = await APIs.getVPNServers();
+      // Use VpnGateApiService for proper CSV parsing
+      final List<VpnGateServer> fetched = await VpnGateApiService.fetchVpnGateServers();
       if (mounted) {
         setState(() {
-          // Sort by intelligent score (descending) then by ping (ascending)
+          // Sort by Score (descending) and Ping (ascending) - CRITICAL FIX
           fetched.sort((a, b) {
-            final scoreComparison = b.intelligentScore.compareTo(a.intelligentScore);
+            final scoreComparison = b.score.compareTo(a.score);
             if (scoreComparison != 0) return scoreComparison;
-            return (a.Ping ?? ServerConstants.maxPing).compareTo(b.Ping ?? ServerConstants.maxPing);
+            return a.ping.compareTo(b.ping);
           });
-          // Map to existing VpnServer shape only where needed; keep original keys for connect path
+          
+          // Map to existing VpnServer shape for UI compatibility
           servers = fetched.map((s) => VpnServer(
-            id: s.HostName ?? '',
-            name: s.HostName ?? '',
-            hostname: s.HostName ?? '',
-            ip: s.IP ?? '',
-            country: s.CountryLong ?? '',
+            id: s.hostName,
+            name: s.hostName,
+            hostname: s.hostName,
+            ip: s.ip,
+            country: s.countryLong,
             protocol: VpnProtocol.openvpn,
             port: 0,
-            speedBps: s.Speed ?? 0,
-            pingMs: s.Ping ?? ServerConstants.maxPing,
-            ovpnBase64: s.OpenVPN_ConfigData_Base64 ?? '',
+            speedBps: s.speed,
+            pingMs: s.ping,
+            ovpnBase64: s.openvpnConfigDataBase64 ?? '',
+            score: s.score, // Add score to VpnServer model
           )).toList();
           _loadingServers = false;
         });
-        print('🏠 Home screen loaded ${servers.length} servers (vpndart/APIs)');
+        print('🏠 Home screen loaded ${servers.length} servers (VpnGateApiService)');
         if (servers.isNotEmpty) {
           final bestServer = fetched.first;
-          print('🚀 Best server: ${bestServer.HostName} (${bestServer.CountryLong}) - Score: ${bestServer.intelligentScore.toStringAsFixed(1)}, Ping: ${bestServer.Ping}ms, Speed: ${(bestServer.Speed ?? 0) / 1000000}Mbps');
+          print('🚀 Best server: ${bestServer.hostName} (${bestServer.countryLong}) - Score: ${bestServer.score}, Ping: ${bestServer.ping}ms, Speed: ${(bestServer.speed / 1000000).toStringAsFixed(1)}Mbps');
         }
       }
     } catch (e) {
-      print('Error loading servers (APIs): $e');
+      print('Error loading servers (VpnGateApiService): $e');
       if (mounted) {
         setState(() {
           _loadingServers = false;

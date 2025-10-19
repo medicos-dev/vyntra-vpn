@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:openvpn_flutter/openvpn_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -58,7 +59,7 @@ class VpnController extends StateNotifier<VpnState> {
     }
   }
 
-  /// Connect to VPN using VPNGate API with UDP/TCP fallback
+  /// Connect to VPN using VPNGate API with direct Base64 decoding
   Future<bool> connect({String? country}) async {
     try {
       _set(VpnState.connecting);
@@ -72,30 +73,38 @@ class VpnController extends StateNotifier<VpnState> {
         return false;
       }
 
-      // Get servers sorted by preference (UDP first, then TCP)
-      List<VpnGateServer> preferredServers;
+      // Filter by country if specified
+      List<VpnGateServer> filteredServers = servers;
       if (country != null && country.isNotEmpty) {
-        final countryServers = VpnGateApiService.getServersByCountry(servers, country);
-        preferredServers = VpnGateApiService.getServersByPreference(countryServers);
-      } else {
-        preferredServers = VpnGateApiService.getServersByPreference(servers);
+        filteredServers = VpnGateApiService.getServersByCountry(servers, country);
       }
 
-      if (preferredServers.isEmpty) {
+      if (filteredServers.isEmpty) {
         _lastError = 'No suitable servers found for the selected criteria.';
         _set(VpnState.failed);
         return false;
       }
 
-      // Try connecting to servers in order of preference
-      // Each attempt is isolated - failures are cleaned up before trying the next server
-      for (int i = 0; i < preferredServers.length && i < 3; i++) {
-        final server = preferredServers[i];
+      // Sort by Score (descending) and Ping (ascending) - CRITICAL FIX
+      filteredServers.sort((a, b) {
+        final scoreComparison = b.score.compareTo(a.score);
+        if (scoreComparison != 0) return scoreComparison;
+        return a.ping.compareTo(b.ping);
+      });
+
+      print('📊 Top 5 servers by score:');
+      for (int i = 0; i < filteredServers.length && i < 5; i++) {
+        final server = filteredServers[i];
+        print('  ${i + 1}. ${server.hostName} - Score: ${server.score}, Ping: ${server.ping}ms, Country: ${server.countryLong}');
+      }
+
+      // Try connecting to the top 3 servers directly
+      final topServers = filteredServers.take(3).toList();
+      for (int i = 0; i < topServers.length; i++) {
+        final server = topServers[i];
         _currentServer = server;
         
-        print('🎯 Attempting server ${i + 1}: ${server.hostName} (${server.countryLong})');
-        print('📊 Server stats: ${(server.speed / 1e6).toStringAsFixed(1)} Mbps, ${server.ping}ms');
-        print('🔗 Protocol: ${server.hasUdpSupport ? 'UDP' : 'TCP'}');
+        print('🎯 Attempting server ${i + 1}: ${server.hostName} (Score: ${server.score}, Ping: ${server.ping}ms)');
 
         try {
           final success = await _attemptConnection(server);
@@ -105,8 +114,7 @@ class VpnController extends StateNotifier<VpnState> {
           }
         } catch (e) {
           print('❌ Failed to connect to ${server.hostName}: $e');
-          // _attemptConnection already calls disconnect() on failure
-          if (i == preferredServers.length - 1) {
+          if (i == topServers.length - 1) {
             _lastError = 'All connection attempts failed. Last error: $e';
           }
         }
@@ -125,19 +133,38 @@ class VpnController extends StateNotifier<VpnState> {
 
   /// Attempt connection to a specific server
   Future<bool> _attemptConnection(VpnGateServer server) async {
-    // Validate server has config
-    if (server.openvpnConfigDataBase64 == null || server.openvpnConfigDataBase64!.isEmpty) {
-      throw Exception('No OpenVPN config available for this server');
-    }
-
     // Check internet reachability before attempting connection
     final hasInternet = await _checkInternetReachability();
     if (!hasInternet) {
       throw Exception('No internet connection available - please check your network');
     }
 
+    // Validate server has config
+    if (server.openvpnConfigDataBase64 == null || server.openvpnConfigDataBase64!.isEmpty) {
+      throw Exception('No OpenVPN config available for ${server.hostName}');
+    }
+
+    // Decode Base64 config directly
+    String decodedConfig;
+    try {
+      final decodedBytes = base64.decode(server.openvpnConfigDataBase64!);
+      decodedConfig = utf8.decode(decodedBytes);
+      print('📄 Decoded config for ${server.hostName} (${decodedConfig.length} chars)');
+    } catch (e) {
+      throw Exception('Failed to decode Base64 config for ${server.hostName}: $e');
+    }
+
+    // Validate the decoded config
+    if (!_isValidOvpnConfig(decodedConfig)) {
+      throw Exception('Invalid OpenVPN config for ${server.hostName} - missing essential directives');
+    }
+
+    // Normalize the config
+    final normalizedConfig = _normalizeOvpnConfig(decodedConfig);
+    print('✅ Config normalized for ${server.hostName}');
+
     // Prepare config with mandatory UDP and credential modifications
-    final preparedConfig = _prepareConfig(server);
+    final preparedConfig = _prepareConfigFromString(normalizedConfig, server);
 
     // Start connection timeout
     _connectionTimeout?.cancel();
@@ -197,10 +224,9 @@ class VpnController extends StateNotifier<VpnState> {
     }
   }
 
-  /// Prepare OpenVPN config with mandatory UDP and credential modifications
-  String _prepareConfig(VpnGateServer server) {
-    // 1. Decode the Base64 configuration
-    String config = VpnGateApiService.decodeOpenVpnConfig(server.openvpnConfigDataBase64!)!;
+
+  /// Prepare OpenVPN config from string content
+  String _prepareConfigFromString(String config, VpnGateServer server) {
     print('🔧 Original config protocol: ${RegExp(r'proto\s+\w+', caseSensitive: false).firstMatch(config)?.group(0) ?? 'none'}');
 
     // 2. FORCE UDP PROTOCOL - CRITICAL fix for stalling issue
@@ -266,6 +292,36 @@ class VpnController extends StateNotifier<VpnState> {
     }
 
     return adjusted;
+  }
+
+  /// Validate OpenVPN configuration
+  bool _isValidOvpnConfig(String config) {
+    // Check for essential OpenVPN directives
+    final hasRemote = config.contains('remote');
+    final hasCa = config.contains('<ca>') && config.contains('</ca>');
+    final hasProto = config.contains('proto');
+    final hasDev = config.contains('dev tun') || config.contains('dev tap');
+    
+    return hasRemote && hasCa && hasProto && hasDev;
+  }
+
+  /// Normalize OpenVPN configuration
+  String _normalizeOvpnConfig(String config) {
+    // Normalize line endings (Windows \r\n → Unix \n)
+    String normalized = config.replaceAll('\r\n', '\n');
+    
+    // Trim extra whitespace around XML blocks
+    normalized = normalized.replaceAll(RegExp(r'\s*<ca>\s*'), '\n<ca>\n');
+    normalized = normalized.replaceAll(RegExp(r'\s*</ca>\s*'), '\n</ca>\n');
+    normalized = normalized.replaceAll(RegExp(r'\s*<cert>\s*'), '\n<cert>\n');
+    normalized = normalized.replaceAll(RegExp(r'\s*</cert>\s*'), '\n</cert>\n');
+    normalized = normalized.replaceAll(RegExp(r'\s*<key>\s*'), '\n<key>\n');
+    normalized = normalized.replaceAll(RegExp(r'\s*</key>\s*'), '\n</key>\n');
+    
+    // Clean up multiple consecutive newlines
+    normalized = normalized.replaceAll(RegExp(r'\n{3,}'), '\n\n');
+    
+    return normalized.trim();
   }
 
   /// Check internet reachability before attempting VPN connection
