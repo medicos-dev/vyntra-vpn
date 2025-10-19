@@ -48,12 +48,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     _nextIdx = 0;
   }
 
-  String? _getNextBase64() {
+  String? _getNextCountry() {
     if (_lastCandidates.isEmpty) return null;
     if (_nextIdx >= _lastCandidates.length) _nextIdx = 0;
     final item = _lastCandidates[_nextIdx++] as Map<String, dynamic>;
-    final b64 = (item['OpenVPN_ConfigData_Base64'] ?? '') as String;
-    return b64.isNotEmpty ? b64 : null;
+    final country = (item['CountryLong'] ?? '') as String;
+    return country.isNotEmpty ? country : null;
   }
 
   @override
@@ -82,7 +82,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       await ctrl.init();
       _watchdog = ReconnectWatchdog(
         controller: ctrl,
-        nextBase64Provider: () async => _getNextBase64(),
+        nextCountryProvider: () async => _getNextCountry(),
       );
       await _watchdog!.start();
       // On app start: hard-refresh unless already connected (then do a soft load)

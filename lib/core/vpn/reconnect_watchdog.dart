@@ -4,13 +4,13 @@ import 'vpn_controller.dart';
 
 class ReconnectWatchdog {
   final VpnController controller;
-  final Future<String?> Function() nextBase64Provider;
+  final Future<String?> Function() nextCountryProvider;
 
   StreamSubscription? _connSub;
   Timer? _backoffTimer;
   int _attempt = 0;
 
-  ReconnectWatchdog({required this.controller, required this.nextBase64Provider});
+  ReconnectWatchdog({required this.controller, required this.nextCountryProvider});
 
   Future<void> start() async {
     _connSub = Connectivity().onConnectivityChanged.listen((_) async {
@@ -32,9 +32,9 @@ class ReconnectWatchdog {
     _backoffTimer?.cancel();
     final int seconds = _nextBackoffSeconds();
     _backoffTimer = Timer(Duration(seconds: seconds), () async {
-      final String? nextB64 = await nextBase64Provider();
-      if (nextB64 != null && controller.current != VpnState.connected) {
-        await controller.connectFromBase64(nextB64);
+      final String? nextCountry = await nextCountryProvider();
+      if (nextCountry != null && controller.current != VpnState.connected) {
+        await controller.connect(country: nextCountry);
       }
     });
   }

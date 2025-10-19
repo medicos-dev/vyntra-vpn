@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
-import 'package:flutter_vpn/flutter_vpn.dart';
 import 'package:android_intent_plus/android_intent.dart';
 // === OLD OPENVPN CODE (for reference) ===
 // import 'package:openvpn_flutter/openvpn_flutter.dart';
@@ -25,13 +24,12 @@ class VpnController {
   Timer? _countdown;
   bool _isInitialized = false;
   VpnGateServer? _currentServer;
-  StreamSubscription? _vpnStateSubscription;
 
-  // Reference-aligned native channels
-  static const String _eventChannelVpnStage = 'vpnStage';
-  static const String _methodChannelVpnControl = 'vpnControl';
-  final EventChannel _stageChannel = const EventChannel(_eventChannelVpnStage);
+  // Native platform channels for L2TP/IPSec
+  static const String _methodChannelVpnControl = 'com.vyntra.vyntra_app_aiks/vpn_control';
+  static const String _eventChannelVpnStage = 'com.vyntra.vyntra_app_aiks/vpn_stage';
   final MethodChannel _controlChannel = const MethodChannel(_methodChannelVpnControl);
+  final EventChannel _stageChannel = const EventChannel(_eventChannelVpnStage);
   StreamSubscription? _stageSubscription;
 
   Stream<VpnState> get state => _stateCtrl.stream;
@@ -44,23 +42,29 @@ class VpnController {
     if (_isInitialized) return;
     
     try {
-      // Initialize L2TP/IPsec VPN
-      await FlutterVpn.prepare();
+      // Initialize native L2TP/IPSec VPN controller
+      await _controlChannel.invokeMethod('initialize');
       
-      // Listen to VPN state changes
-      _vpnStateSubscription = FlutterVpn.onStateChanged.listen((state) {
-        // Map FlutterVpn state to our VpnState
-        if (state.toString().contains('connected')) {
-          _set(VpnState.connected);
-          _sessionManager.startSession();
-        } else if (state.toString().contains('disconnected')) {
-          _stopCountdown();
-          NotificationService().showDisconnected();
-          _set(VpnState.disconnected);
-        } else if (state.toString().contains('connecting')) {
-          _set(VpnState.connecting);
-        } else if (state.toString().contains('failed')) {
-          _set(VpnState.failed);
+      // Listen to native VPN state changes
+      _stageSubscription = _stageChannel.receiveBroadcastStream().cast<String>().listen((stage) async {
+        switch (stage.toLowerCase()) {
+          case 'connected':
+            _set(VpnState.connected);
+            await _sessionManager.startSession();
+            break;
+          case 'disconnected':
+            _stopCountdown();
+            NotificationService().showDisconnected();
+            _set(VpnState.disconnected);
+            break;
+          case 'connecting':
+            _set(VpnState.connecting);
+            break;
+          case 'failed':
+            _set(VpnState.failed);
+            break;
+          default:
+            break;
         }
       });
       
@@ -93,21 +97,6 @@ class VpnController {
       // );
       // === END OLD OPENVPN CODE ===
       
-      _stageSubscription?.cancel();
-      _stageSubscription = _stageChannel.receiveBroadcastStream().cast<String>().listen((stage) async {
-        final String s = (stage).toLowerCase();
-        if (s == 'connected') {
-          _set(VpnState.connected);
-          await _sessionManager.startSession();
-        } else if (s == 'disconnected') {
-          _stopCountdown();
-          NotificationService().showDisconnected();
-          _set(VpnState.disconnected);
-        } else if (s == 'connecting' || s == 'wait_connection') {
-          _set(VpnState.connecting);
-        }
-      });
-      
       await NotificationService().init();
       await _sessionManager.initialize();
       
@@ -128,34 +117,19 @@ class VpnController {
     _countdown?.cancel();
     int left = seconds;
     _secondsLeftCtrl.add(left);
-    _tickNotify(left, 0.0, 0.0);
-    _countdown = Timer.periodic(const Duration(seconds: 1), (t) {
-      left -= 1;
-      if (left <= 0) {
-        _secondsLeftCtrl.add(0);
-        _tickNotify(0, 0.0, 0.0);
-        t.cancel();
-        disconnect();
-        return;
-      }
+    _countdown = Timer.periodic(const Duration(seconds: 1), (timer) {
+      left--;
       _secondsLeftCtrl.add(left);
-      _tickNotify(left, 0.0, 0.0);
+      if (left <= 0) {
+        timer.cancel();
+        disconnect();
+      }
     });
   }
 
   void _stopCountdown() {
     _countdown?.cancel();
     _countdown = null;
-    _secondsLeftCtrl.add(0);
-  }
-
-  void _tickNotify(int secondsLeft, double upMbps, double downMbps) {
-    final String mm = (secondsLeft ~/ 60).toString().padLeft(2, '0');
-    final String ss = (secondsLeft % 60).toString().padLeft(2, '0');
-    NotificationService().updateStatus(
-      title: 'Connected',
-      body: 'Up: ${upMbps.toStringAsFixed(1)} Mbps | Down: ${downMbps.toStringAsFixed(1)} Mbps | $mm:$ss',
-    );
   }
 
   void _set(VpnState s) {
@@ -163,7 +137,7 @@ class VpnController {
     _stateCtrl.add(s);
   }
 
-  /// Connect using L2TP/IPsec (Primary method)
+  /// Connect using native L2TP/IPSec (Primary method)
   Future<bool> connectL2tp({String? country}) async {
     try {
       _set(VpnState.connecting);
@@ -197,9 +171,9 @@ class VpnController {
       final Completer<bool> done = Completer<bool>();
       final timeout = Timer(const Duration(seconds: 30), () async {
         if (!done.isCompleted && _current == VpnState.connecting) {
-          _lastError = 'L2TP connection timeout - server may be unreachable';
+          _lastError = 'L2TP connection timeout - trying fallback';
           _set(VpnState.failed);
-          await _fallbackToSystemSettings();
+          await _tryFallback();
           done.complete(false);
         }
       });
@@ -223,21 +197,48 @@ class VpnController {
         }
       });
 
-      // Connect using L2TP/IPsec
-      // Since flutter_vpn API is unclear, we'll use a fallback approach
-      // This will trigger the fallback to system settings
-      timeout.cancel();
-      connectionSub.cancel();
-      _lastError = 'L2TP connection not implemented - using fallback';
-      _set(VpnState.failed);
-      await _fallbackToSystemSettings();
-      if (!done.isCompleted) done.complete(false);
-      return false;
+      // Connect using native L2TP/IPSec
+      try {
+        await _controlChannel.invokeMethod('connect', {
+          'server': server.ip,
+          'username': 'vpn',
+          'password': 'vpn',
+          'sharedKey': server.l2tpSupported ?? 'vpn',
+          'country': country ?? server.countryLong,
+        });
+      } catch (e) {
+        timeout.cancel();
+        connectionSub?.cancel();
+        _lastError = 'L2TP connection failed: $e';
+        _set(VpnState.failed);
+        await _tryFallback();
+        if (!done.isCompleted) done.complete(false);
+        return false;
+      }
+
+      return await done.future;
     } catch (e) {
       _lastError = 'L2TP connection failed: $e';
       _set(VpnState.failed);
-      await _fallbackToSystemSettings();
+      await _tryFallback();
       return false;
+    }
+  }
+
+  /// Fallback mechanism (Option C)
+  Future<void> _tryFallback() async {
+    try {
+      // Try HTTP proxy fallback
+      await _controlChannel.invokeMethod('connectProxy', {
+        'server': _currentServer?.ip ?? '127.0.0.1',
+        'port': 8080,
+      });
+      
+      // If proxy fails, open system VPN settings
+      await _fallbackToSystemSettings();
+    } catch (e) {
+      // Final fallback to system settings
+      await _fallbackToSystemSettings();
     }
   }
 
@@ -390,7 +391,7 @@ class VpnController {
   //       // Now connect using the plugin
   //       if (_engine == null) {
   //         timeout.cancel();
-  //         connectionSub?.cancel();
+  //         connectionSub.cancel();
   //         _lastError = 'VPN engine not initialized';
   //         _set(VpnState.failed);
   //         if (!done.isCompleted) done.complete(false);
@@ -407,7 +408,7 @@ class VpnController {
   //         );
   //       } catch (e) {
   //         timeout.cancel();
-  //         connectionSub?.cancel();
+  //         connectionSub.cancel();
   //         _lastError = 'OpenVPN connection failed: $e';
   //         _set(VpnState.failed);
   //         if (!done.isCompleted) done.complete(false);
@@ -431,7 +432,7 @@ class VpnController {
   // }
   // === END OLD OPENVPN CODE ===
 
-  /// Main connect method - uses L2TP/IPsec
+  /// Main connect method - uses native L2TP/IPSec
   Future<bool> connect({String? country}) async {
     return await connectL2tp(country: country);
   }
@@ -442,9 +443,9 @@ class VpnController {
         return;
       }
       
-      // Disconnect L2TP/IPsec
+      // Disconnect native L2TP/IPSec
       try {
-        await FlutterVpn.disconnect();
+        await _controlChannel.invokeMethod('disconnect');
       } catch (_) {}
       
       // === OLD OPENVPN CODE (for reference) ===
@@ -469,7 +470,6 @@ class VpnController {
 
   Future<void> dispose() async {
     await _stageSubscription?.cancel();
-    await _vpnStateSubscription?.cancel();
     _sessionManager.dispose();
     _stopCountdown();
     await _stateCtrl.close();
