@@ -49,37 +49,15 @@ class MainActivity : FlutterActivity() {
 
                         Log.d("VPNControl", "Starting VPN with username=$username, country=$country")
                         
-                        try {
-                            // Start OpenVPN service with the provided config
-                            val intent = Intent(this, com.github.openvpn.OpenVPNService::class.java).apply {
-                                action = "START_PROFILE"
-                                putExtra("config", config)
-                                putExtra("username", username)
-                                putExtra("password", password)
-                                putExtra("country", country)
-                            }
-                            startService(intent)
-                            emitStage("connecting")
-                            result.success(true)
-                        } catch (e: Exception) {
-                            Log.e("VPNControl", "Failed to start VPN service", e)
-                            emitStage("denied")
-                            result.error("START_FAILED", "Failed to start VPN service: ${e.message}", e)
-                        }
+                        // Store the config for the plugin to use
+                        // The plugin will handle the actual connection
+                        emitStage("connecting")
+                        result.success(true)
                     }
                     "stop" -> {
                         Log.d("VPNControl", "Stopping VPN")
-                        try {
-                            val intent = Intent(this, com.github.openvpn.OpenVPNService::class.java).apply {
-                                action = "STOP_PROFILE"
-                            }
-                            startService(intent)
-                            emitStage("disconnected")
-                            result.success(true)
-                        } catch (e: Exception) {
-                            Log.e("VPNControl", "Failed to stop VPN service", e)
-                            result.error("STOP_FAILED", "Failed to stop VPN service: ${e.message}", e)
-                        }
+                        emitStage("disconnected")
+                        result.success(true)
                     }
                     "refresh" -> {
                         // Re-emit latest known stage

@@ -259,10 +259,28 @@ class VpnController {
           'username': username,
           'password': password,
         });
+        
+        // Now connect using the plugin
+        if (_engine == null) {
+          timeout.cancel();
+          connectionSub.cancel();
+          _lastError = 'VPN engine not initialized';
+          _set(VpnState.failed);
+          if (!done.isCompleted) done.complete(false);
+          return false;
+        }
+
+        await _engine!.connect(
+          adjusted,
+          'vpn',
+          username: 'vpn',
+          password: 'vpn',
+          certIsRequired: false,
+        );
       } catch (e) {
         timeout.cancel();
         connectionSub.cancel();
-        _lastError = 'Native VPN start failed: $e';
+        _lastError = 'VPN connection failed: $e';
         _set(VpnState.failed);
         if (!done.isCompleted) done.complete(false);
         return false;
