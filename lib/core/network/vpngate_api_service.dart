@@ -56,7 +56,7 @@ class VpnGateServer {
     );
   }
 
-  // Calculate intelligent score based on ping and speed
+  // Calculate intelligent score based on ping, speed, and protocol preference
   double get intelligentScore {
     if (score > 0) return score.toDouble();
     
@@ -64,7 +64,18 @@ class VpnGateServer {
     final pingScore = (ping > 0) ? (1000.0 / ping.clamp(1, 1000)) : 0.0;
     final speedScore = (speed > 0) ? (speed / 1000000.0) : 0.0; // Convert to Mbps
     
-    return (pingScore * 0.7 + speedScore * 0.3) * 1000;
+    // Protocol bonus: UDP gets higher priority (avoids TCP meltdown)
+    final protocolBonus = hasUdpSupport ? 1.5 : 1.0;
+    
+    return (pingScore * 0.7 + speedScore * 0.3) * 1000 * protocolBonus;
+  }
+
+  // Check if server supports UDP (based on common VPNGate patterns)
+  bool get hasUdpSupport {
+    // VPNGate servers typically support both TCP and UDP
+    // We'll assume UDP support unless explicitly TCP-only
+    return !hostName.toLowerCase().contains('tcp') && 
+           !hostName.toLowerCase().contains('443');
   }
 
   // Check if server has valid OpenVPN config
@@ -173,18 +184,55 @@ class VpnGateApiService {
     ).toList();
   }
 
-  /// Get the best server based on intelligent scoring
+  /// Get the best server based on intelligent scoring with UDP prioritization
   static VpnGateServer? getBestServer(List<VpnGateServer> servers) {
     if (servers.isEmpty) return null;
     
-    // Sort by intelligent score (descending) then by ping (ascending)
-    servers.sort((a, b) {
-      final scoreComparison = b.intelligentScore.compareTo(a.intelligentScore);
-      if (scoreComparison != 0) return scoreComparison;
-      return a.ping.compareTo(b.ping);
-    });
+    // Separate UDP and TCP servers
+    final udpServers = servers.where((s) => s.hasUdpSupport).toList();
+    final tcpServers = servers.where((s) => !s.hasUdpSupport).toList();
     
-    return servers.first;
+    // Sort each group by intelligent score (descending) then by ping (ascending)
+    void sortServers(List<VpnGateServer> serverList) {
+      serverList.sort((a, b) {
+        final scoreComparison = b.intelligentScore.compareTo(a.intelligentScore);
+        if (scoreComparison != 0) return scoreComparison;
+        return a.ping.compareTo(b.ping);
+      });
+    }
+    
+    sortServers(udpServers);
+    sortServers(tcpServers);
+    
+    // Prioritize UDP servers, fallback to TCP
+    if (udpServers.isNotEmpty) {
+      return udpServers.first;
+    } else if (tcpServers.isNotEmpty) {
+      return tcpServers.first;
+    }
+    
+    return null;
+  }
+
+  /// Get servers sorted by preference (UDP first, then TCP)
+  static List<VpnGateServer> getServersByPreference(List<VpnGateServer> servers) {
+    final udpServers = servers.where((s) => s.hasUdpSupport).toList();
+    final tcpServers = servers.where((s) => !s.hasUdpSupport).toList();
+    
+    // Sort each group
+    void sortServers(List<VpnGateServer> serverList) {
+      serverList.sort((a, b) {
+        final scoreComparison = b.intelligentScore.compareTo(a.intelligentScore);
+        if (scoreComparison != 0) return scoreComparison;
+        return a.ping.compareTo(b.ping);
+      });
+    }
+    
+    sortServers(udpServers);
+    sortServers(tcpServers);
+    
+    // Return UDP servers first, then TCP servers
+    return [...udpServers, ...tcpServers];
   }
 
   /// Decode Base64 OpenVPN config to readable format

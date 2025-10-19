@@ -57,7 +57,7 @@ class VpnController extends StateNotifier<VpnState> {
     }
   }
 
-  /// Connect to VPN using VPNGate API
+  /// Connect to VPN using VPNGate API with UDP/TCP fallback
   Future<bool> connect({String? country}) async {
     try {
       _set(VpnState.connecting);
@@ -66,65 +66,102 @@ class VpnController extends StateNotifier<VpnState> {
       // Fetch servers from VPNGate API
       final servers = await VpnGateApiService.fetchVpnGateServers();
       if (servers.isEmpty) {
-        _lastError = 'No VPN servers available';
+        _lastError = 'No VPN servers available. Please check your internet connection.';
         _set(VpnState.failed);
         return false;
       }
 
-      // Select the best server
-      VpnGateServer? server;
+      // Get servers sorted by preference (UDP first, then TCP)
+      List<VpnGateServer> preferredServers;
       if (country != null && country.isNotEmpty) {
         final countryServers = VpnGateApiService.getServersByCountry(servers, country);
-        server = VpnGateApiService.getBestServer(countryServers);
+        preferredServers = VpnGateApiService.getServersByPreference(countryServers);
+      } else {
+        preferredServers = VpnGateApiService.getServersByPreference(servers);
       }
-      server ??= VpnGateApiService.getBestServer(servers);
 
-      if (server == null) {
-        _lastError = 'No suitable server found';
+      if (preferredServers.isEmpty) {
+        _lastError = 'No suitable servers found for the selected criteria.';
         _set(VpnState.failed);
         return false;
       }
 
-      _currentServer = server;
-      print('🎯 Selected server: ${server.hostName} (${server.countryLong})');
-      print('📊 Server stats: ${(server.speed / 1e6).toStringAsFixed(1)} Mbps, ${server.ping}ms');
+      // Try connecting to servers in order of preference
+      for (int i = 0; i < preferredServers.length && i < 3; i++) {
+        final server = preferredServers[i];
+        _currentServer = server;
+        
+        print('🎯 Attempting server ${i + 1}: ${server.hostName} (${server.countryLong})');
+        print('📊 Server stats: ${(server.speed / 1e6).toStringAsFixed(1)} Mbps, ${server.ping}ms');
+        print('🔗 Protocol: ${server.hasUdpSupport ? 'UDP' : 'TCP'}');
 
-      // Decode OpenVPN config
-      final configData = server.openvpnConfigDataBase64;
-      if (configData == null || configData.isEmpty) {
-        _lastError = 'No OpenVPN config available for this server';
-        _set(VpnState.failed);
-        return false;
-      }
-
-      final ovpnConfig = VpnGateApiService.decodeOpenVpnConfig(configData);
-      if (ovpnConfig == null) {
-        _lastError = 'Failed to decode OpenVPN configuration';
-        _set(VpnState.failed);
-        return false;
-      }
-
-      // Apply OpenVPN3-compatible adjustments
-      final adjustedConfig = _applyOpenVpn3Adjustments(ovpnConfig, server.ip);
-
-      // Start connection timeout
-      _connectionTimeout = Timer(const Duration(seconds: 30), () {
-        if (state == VpnState.connecting) {
-          _lastError = 'Connection timeout';
-          _set(VpnState.failed);
+        try {
+          final success = await _attemptConnection(server);
+          if (success) {
+            print('✅ Connected successfully to ${server.hostName}');
+            return true;
+          }
+        } catch (e) {
+          print('❌ Failed to connect to ${server.hostName}: $e');
+          if (i == preferredServers.length - 1) {
+            _lastError = 'All connection attempts failed. Last error: $e';
+          }
         }
-      });
+      }
 
-      // Connect using OpenVPN Flutter
-      await _engine!.connect(adjustedConfig, 'vpn');
-
-      return true;
+      _lastError = 'Unable to connect to any available server. Please try again.';
+      _set(VpnState.failed);
+      return false;
     } catch (e) {
       _lastError = 'Connection failed: $e';
       _set(VpnState.failed);
       _connectionTimeout?.cancel();
       return false;
     }
+  }
+
+  /// Attempt connection to a specific server
+  Future<bool> _attemptConnection(VpnGateServer server) async {
+    // Decode OpenVPN config
+    final configData = server.openvpnConfigDataBase64;
+    if (configData == null || configData.isEmpty) {
+      throw Exception('No OpenVPN config available for this server');
+    }
+
+    final ovpnConfig = VpnGateApiService.decodeOpenVpnConfig(configData);
+    if (ovpnConfig == null) {
+      throw Exception('Failed to decode OpenVPN configuration');
+    }
+
+    // Apply OpenVPN3-compatible adjustments
+    final adjustedConfig = _applyOpenVpn3Adjustments(ovpnConfig, server.ip);
+
+    // Start connection timeout
+    _connectionTimeout?.cancel();
+    _connectionTimeout = Timer(const Duration(seconds: 30), () {
+      if (state == VpnState.connecting) {
+        _lastError = 'Connection timeout - server did not respond';
+        _set(VpnState.failed);
+      }
+    });
+
+    // Connect using OpenVPN Flutter
+    await _engine!.connect(adjustedConfig, 'vpn');
+
+    // Wait for connection confirmation
+    await Future.delayed(const Duration(seconds: 2));
+    
+    if (state == VpnState.connected) {
+      _connectionTimeout?.cancel();
+      return true;
+    } else if (state == VpnState.failed) {
+      _connectionTimeout?.cancel();
+      return false;
+    }
+
+    // If still connecting, wait a bit more
+    await Future.delayed(const Duration(seconds: 3));
+    return state == VpnState.connected;
   }
 
   /// Refresh VPN stage
@@ -151,6 +188,9 @@ class VpnController extends StateNotifier<VpnState> {
   String _applyOpenVpn3Adjustments(String config, String serverIp) {
     String adjusted = config;
 
+    // Detect if this is a UDP or TCP config
+    final isUdp = adjusted.contains('proto udp') || !adjusted.contains('proto tcp');
+    
     // Add OpenVPN3-compatible flags
     final adjustments = [
       'pull-filter ignore "comp-lzo"',
@@ -160,7 +200,7 @@ class VpnController extends StateNotifier<VpnState> {
       'persist-tun',
       'auth-nocache',
       'data-ciphers AES-256-GCM:AES-128-GCM:AES-256-CBC:AES-128-CBC',
-      'proto tcp-client',
+      if (isUdp) 'proto udp' else 'proto tcp-client',
       'explicit-exit-notify 3',
       'verb 5',
     ];
@@ -171,8 +211,12 @@ class VpnController extends StateNotifier<VpnState> {
       }
     }
 
-    // Ensure auth-user-pass is present
-    if (!adjusted.contains('auth-user-pass')) {
+    // Handle auth-user-pass properly
+    if (adjusted.contains('#auth-user-pass')) {
+      // Uncomment the auth-user-pass line
+      adjusted = adjusted.replaceAll('#auth-user-pass', 'auth-user-pass');
+    } else if (!adjusted.contains('auth-user-pass')) {
+      // Add auth-user-pass if not present
       adjusted += '\nauth-user-pass';
     }
 
@@ -214,16 +258,27 @@ class VpnController extends StateNotifier<VpnState> {
       } else if (stageStr.contains('reconnecting')) {
         _set(VpnState.reconnecting);
       } else if (stageStr.contains('auth') || stageStr.contains('failed')) {
-        _lastError = 'Authentication failed';
+        _lastError = 'Authentication failed - check server credentials';
+        _set(VpnState.failed);
+      } else if (stageStr.contains('timeout') || stageStr.contains('timed out')) {
+        _lastError = 'Connection timeout - server did not respond';
         _set(VpnState.failed);
       } else if (stageStr.contains('no') || stageStr.contains('connection')) {
-        _lastError = 'No connection';
+        _lastError = 'No network connection available';
         _set(VpnState.failed);
       } else if (stageStr.contains('device') || stageStr.contains('supported')) {
-        _lastError = 'Device not supported';
+        _lastError = 'Device not supported for VPN connections';
+        _set(VpnState.failed);
+      } else if (stageStr.contains('permission') || stageStr.contains('denied')) {
+        _lastError = 'VPN permission denied - please grant VPN access';
+        _set(VpnState.failed);
+      } else if (stageStr.contains('server') || stageStr.contains('unreachable')) {
+        _lastError = 'Server unreachable - trying next server';
         _set(VpnState.failed);
       } else {
         print('Unknown VPN stage: $stage');
+        _lastError = 'Connection error: $stage';
+        _set(VpnState.failed);
       }
     }
   }
