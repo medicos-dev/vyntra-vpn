@@ -166,9 +166,13 @@ class VpnController extends StateNotifier<VpnState> {
       throw Exception('Failed to save UTF-8 content to OVPN file for ${server.hostName}');
     }
 
-    // Step 4: Normalize the config for connection (but keep original file intact)
-    final normalizedConfig = _normalizeOvpnConfig(utf8DecodedConfig);
-    print('✅ Config normalized for connection (original UTF-8 file preserved)');
+    // Step 4: Read the .ovpn file back and use it for connection
+    final ovpnFileContent = await ovpnFile.readAsString();
+    print('📖 Read .ovpn file content: ${ovpnFileContent.length} chars');
+    
+    // Step 5: Normalize the file content for connection
+    final normalizedConfig = _normalizeOvpnConfig(ovpnFileContent);
+    print('✅ Config normalized for connection from .ovpn file');
 
     // Prepare config with mandatory UDP and credential modifications
     final preparedConfig = _prepareConfigFromString(normalizedConfig, server);
@@ -190,6 +194,7 @@ class VpnController extends StateNotifier<VpnState> {
     }
 
     // Connect using OpenVPN Flutter with credentials
+    print('🔐 Connecting with credentials: vpn/vpn');
     await _engine!.connect(
       preparedConfig, // The prepared config with UDP and credentials
       'vpn', // name
@@ -236,23 +241,41 @@ class VpnController extends StateNotifier<VpnState> {
   String _prepareConfigFromString(String config, VpnGateServer server) {
     print('🔧 Original config protocol: ${RegExp(r'proto\s+\w+', caseSensitive: false).firstMatch(config)?.group(0) ?? 'none'}');
 
-    // 2. FORCE UDP PROTOCOL - CRITICAL fix for stalling issue
-    config = config.replaceAll(RegExp(r'proto\s+tcp', caseSensitive: false), 'proto udp');
-    config = config.replaceAll(RegExp(r'proto\s+tcp-client', caseSensitive: false), 'proto udp');
-    
-    // Ensure proto udp is present
-    if (!RegExp(r'proto\s+udp', caseSensitive: false).hasMatch(config)) {
-      config += '\nproto udp';
+    // 2. RESPECT ORIGINAL PROTOCOL - Don't force UDP if server uses TCP
+    final originalProtocol = RegExp(r'proto\s+(\w+)', caseSensitive: false).firstMatch(config)?.group(1)?.toLowerCase();
+    if (originalProtocol == 'tcp' || originalProtocol == 'tcp-client') {
+      print('✅ Keeping original TCP protocol (server uses TCP)');
+      // Keep the original port (usually 443 for TCP)
+      final originalRemote = RegExp(r'remote\s+[^\s]+\s+\d+', multiLine: true, caseSensitive: false).firstMatch(config)?.group(0);
+      if (originalRemote != null) {
+        final portMatch = RegExp(r'(\d+)$').firstMatch(originalRemote);
+        final port = portMatch?.group(1) ?? '443';
+        config = config.replaceAll(
+          RegExp(r'remote\s+[^\s]+\s+\d+', multiLine: true, caseSensitive: false), 
+          'remote ${server.ip} $port'
+        );
+        print('✅ Remote line: $originalRemote → remote ${server.ip} $port');
+      }
+    } else {
+      // Only force UDP if no protocol specified or if it's already UDP
+      if (originalProtocol == null || originalProtocol == 'udp') {
+        config = config.replaceAll(RegExp(r'proto\s+tcp', caseSensitive: false), 'proto udp');
+        config = config.replaceAll(RegExp(r'proto\s+tcp-client', caseSensitive: false), 'proto udp');
+        
+        if (!RegExp(r'proto\s+udp', caseSensitive: false).hasMatch(config)) {
+          config += '\nproto udp';
+        }
+        print('✅ Forced UDP protocol');
+        
+        // Force UDP port 1194
+        final originalRemote = RegExp(r'remote\s+[^\s]+\s+\d+', multiLine: true, caseSensitive: false).firstMatch(config)?.group(0);
+        config = config.replaceAll(
+          RegExp(r'remote\s+[^\s]+\s+\d+', multiLine: true, caseSensitive: false), 
+          'remote ${server.ip} 1194'
+        );
+        print('✅ Remote line: $originalRemote → remote ${server.ip} 1194');
+      }
     }
-    print('✅ Forced UDP protocol');
-
-    // 3. FORCE UDP PORT 1194 and ensure IP is used
-    final originalRemote = RegExp(r'remote\s+[^\s]+\s+\d+', multiLine: true, caseSensitive: false).firstMatch(config)?.group(0);
-    config = config.replaceAll(
-      RegExp(r'remote\s+[^\s]+\s+\d+', multiLine: true, caseSensitive: false), 
-      'remote ${server.ip} 1194'
-    );
-    print('✅ Remote line: $originalRemote → remote ${server.ip} 1194');
 
     // 4. Append OpenVPN's auth-user-pass directive
     if (!config.contains('auth-user-pass')) {
@@ -261,6 +284,10 @@ class VpnController extends StateNotifier<VpnState> {
     } else {
       print('✅ auth-user-pass already present');
     }
+    
+    // Debug: Show auth-user-pass line
+    final authLine = RegExp(r'^\s*auth-user-pass\b', multiLine: true).firstMatch(config)?.group(0);
+    print('🔍 Auth directive found: $authLine');
 
     // 5. Clean up other known problem directives
     config = config.replaceAll(RegExp(r'^\s*auth-user-pass-verify\b', multiLine: true), '#auth-user-pass-verify');
@@ -285,6 +312,7 @@ class VpnController extends StateNotifier<VpnState> {
       'persist-key',
       'persist-tun',
       'auth-nocache',
+      'resolv-retry infinite', // Critical: Keep trying to resolve
       // Ensure modern ciphers are present (include CBC as fallback if server needs it)
       'data-ciphers AES-256-GCM:AES-128-GCM:AES-256-CBC:AES-128-CBC',
       'explicit-exit-notify 3',
