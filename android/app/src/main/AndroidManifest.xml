@@ -42,8 +42,7 @@
         <service
             android:name="com.github.openvpn.OpenVPNService"
             android:permission="android.permission.BIND_VPN_SERVICE"
-            android:exported="false"
-            android:foregroundServiceType="vpn">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
