@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:csv/csv.dart';
 import '../models/vpn_server.dart';
@@ -30,9 +29,21 @@ class VpnGateCsvService {
         final host = (temp['HostName'] ?? '').toString();
         final ip = (temp['IP'] ?? '').toString();
         final countryLong = (temp['CountryLong'] ?? '').toString();
-        final score = int.tryParse((temp['Score'] ?? '0').toString()) ?? 0;
+        final rawScore = int.tryParse(temp['Score']?.toString() ?? '0') ?? 0;
         final ping = int.tryParse((temp['Ping'] ?? '9999').toString()) ?? 9999;
         final speed = int.tryParse((temp['Speed'] ?? '0').toString()) ?? 0;
+        
+        // Calculate score based on ping and speed if raw score is 0
+        int score = rawScore;
+        if (score == 0 && ping > 0 && speed > 0) {
+          // Higher speed = higher score, lower ping = higher score
+          // Score range: 0-100, where 100 is best
+          final double speedScore = (speed / 1000000.0) * 50; // Convert to Mbps, max 50 points
+          final double pingScore = (1000.0 / ping) * 50; // Lower ping = higher score, max 50 points
+          score = ((speedScore + pingScore) * 0.8).round().clamp(1, 100);
+        } else if (score == 0) {
+          score = 50; // Default score for servers without metrics
+        }
         final b64 = (temp['OpenVPN_ConfigData_Base64'] ?? '').toString();
 
         out.add(VpnServer.fromVpnGate(
@@ -91,7 +102,7 @@ class VpnGateCsvService {
     final csvConverter = const CsvToListConverter(shouldParseNumbers: false);
     final csvRows = csvConverter.convert(filtered.join('\n'));
     // First row is header
-    final header = (csvRows.isNotEmpty) ? (csvRows.first as List<dynamic>).map((e) => e.toString()).toList() : <String>[];
+    final header = (csvRows.isNotEmpty) ? csvRows.first.map((e) => e.toString()).toList() : <String>[];
     // Build a lowercase trimmed index map
     final idx = <String, int>{};
     for (int i = 0; i < header.length; i++) {
@@ -115,7 +126,7 @@ class VpnGateCsvService {
     final allServers = <Map<String, dynamic>>[];
 
     for (int r = 1; r < csvRows.length; r++) {
-      final row = csvRows[r] as List<dynamic>;
+      final row = csvRows[r];
       if (row.length < header.length) continue;
       final int ipI = _col('ip');
       final int countryI = _col('countrylong');
@@ -128,9 +139,21 @@ class VpnGateCsvService {
       final host = row[hostCol]?.toString() ?? '';
       final ip = row[ipI]?.toString() ?? '';
       final country = row[countryI]?.toString() ?? '';
-      final score = int.tryParse(row[scoreI]?.toString() ?? '') ?? 0;
+      final rawScore = int.tryParse(row[scoreI]?.toString() ?? '') ?? 0;
       final ping = int.tryParse(row[pingI]?.toString() ?? '') ?? 9999;
       final speed = int.tryParse(row[speedI]?.toString() ?? '') ?? 0;
+      
+      // Calculate score based on ping and speed if raw score is 0
+      int score = rawScore;
+      if (score == 0 && ping > 0 && speed > 0) {
+        // Higher speed = higher score, lower ping = higher score
+        // Score range: 0-100, where 100 is best
+        final double speedScore = (speed / 1000000.0) * 50; // Convert to Mbps, max 50 points
+        final double pingScore = (1000.0 / ping) * 50; // Lower ping = higher score, max 50 points
+        score = ((speedScore + pingScore) * 0.8).round().clamp(1, 100);
+      } else if (score == 0) {
+        score = 50; // Default score for servers without metrics
+      }
       final b64 = row[b64I]?.toString() ?? '';
       final hasConfig = b64.isNotEmpty;
       allServers.add({
@@ -178,28 +201,6 @@ class VpnGateCsvService {
     };
   }
 
-  /// Parse CSV line handling quoted fields
-  static List<String> _parseCsvLine(String line) {
-    final List<String> parts = [];
-    bool inQuote = false;
-    String currentPart = '';
-    
-    for (int i = 0; i < line.length; i++) {
-      final char = line[i];
-      
-      if (char == '"') {
-        inQuote = !inQuote;
-      } else if (char == ',' && !inQuote) {
-        parts.add(currentPart);
-        currentPart = '';
-      } else {
-        currentPart += char;
-      }
-    }
-    
-    parts.add(currentPart); // Add the last part
-    return parts;
-  }
 
   /// Get a specific server by hostname or IP
   static Future<VpnServer?> getServerByHostOrIp(String hostOrIp) async {

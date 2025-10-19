@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/vpngate_service.dart';
 import '../../core/network/unified_vpn_service.dart';
-import 'dart:convert';
-import 'package:flutter/services.dart' show rootBundle;
 import '../../core/models/vpn_server.dart';
 import '../../core/vpn/reconnect_watchdog.dart';
 import '../../core/vpn/vpn_controller.dart';
@@ -249,11 +247,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       // First candidate only
       final ctrl = ref.read(vpnControllerProvider);
       final first = all.first;
-      final b64 = first['OpenVPN_ConfigData_Base64'] as String;
       print('🎯 Attempt 1/1: ${first['HostName']} (${first['CountryLong']})');
       print('📊 Server stats: ${(((first['Speed'] as int) / 1e6)).toStringAsFixed(1)} Mbps, ${(first['Ping'] as int)}ms');
 
-      final ok = await ctrl.connectFromBase64(b64, country: (first['CountryLong'] as String?) ?? '');
+      final ok = await ctrl.connect(country: (first['CountryLong'] as String?) ?? '');
       if (!ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Connection failed. Try another server.')),
@@ -490,18 +487,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       margin: const EdgeInsets.symmetric(horizontal: 32),
       child: GestureDetector(
         onLongPress: () async {
-          // Hidden quick-connect using bundled .ovpn for experiments
+          // Hidden quick-connect for experiments
           try {
-            final data = await rootBundle.loadString('data/vpngate_public-vpn-241.opengw.net_tcp_443.ovpn');
             final ctrl = ref.read(vpnControllerProvider);
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Connecting test profile')),
               );
             }
-            final b64 = base64.encode(utf8.encode(data));
             await ctrl.disconnect();
-            await ctrl.connectFromBase64(b64, country: 'Test');
+            await ctrl.connect(country: 'Test');
           } catch (_) {}
         },
         child: ElevatedButton(
@@ -759,7 +754,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                               const SnackBar(content: Text('Connection initialised')),
                             );
                           }
-                          await ctrl.connectFromBase64(b64, country: s.country);
+                          await ctrl.connect(country: s.country);
                           return;
                         }
 
