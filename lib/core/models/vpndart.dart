@@ -1,3 +1,5 @@
+import '../constants/server_constants.dart';
+
 class VpnDart {
   String? timestamp;
   int? totalServers;
@@ -130,6 +132,7 @@ class SampleServers {
 }
 
 class AllServers {
+
   String? HostName;
   String? IP;
   String? CountryLong;
@@ -146,7 +149,7 @@ class AllServers {
     IP = json['IP'] as String?;
     CountryLong = json['CountryLong'] as String?;
     Score = (json['Score'] is String) ? int.tryParse(json['Score'] as String) : json['Score'] as int?;
-    Ping = (json['Ping'] is String) ? int.tryParse(json['Ping'] as String) : json['Ping'] as int?;
+    Ping = (json['Ping'] is String) ? int.tryParse(json['Ping'] as String) ?? ServerConstants.maxPing : json['Ping'] as int? ?? ServerConstants.maxPing;
     Speed = (json['Speed'] is String) ? int.tryParse(json['Speed'] as String) : json['Speed'] as int?;
     HasConfig = json['HasConfig'] as bool?;
     OpenVPN_ConfigData_Base64 = json['OpenVPN_ConfigData_Base64'] as String?;
@@ -170,28 +173,40 @@ class AllServers {
     if (Score != null && Score! > 0) return Score!.toDouble();
     
     // Calculate score based on ping (lower is better) and speed (higher is better)
-    final pingScore = (Ping != null && Ping! > 0) ? (1000.0 / Ping!.clamp(1, 1000)) : 0.0;
-    final speedScore = (Speed != null && Speed! > 0) ? (Speed! / 1000000.0) : 0.0; // Convert to Mbps
+    final pingScore = (Ping != null && Ping! > 0) ? (ServerConstants.pingScoreMultiplier / Ping!.clamp(1, 1000)) : 0.0;
+    final speedScore = (Speed != null && Speed! > 0) ? (Speed! / ServerConstants.speedToMbpsDivisor) : 0.0; // Convert to Mbps
     
     // Protocol bonus: UDP gets higher priority (avoids TCP meltdown)
-    final protocolBonus = hasUdpSupport ? 1.5 : 1.0;
+    final protocolBonus = hasUdpSupport ? ServerConstants.udpProtocolBonus : ServerConstants.tcpProtocolBonus;
     
-    return (pingScore * 0.7 + speedScore * 0.3) * 1000 * protocolBonus;
+    return (pingScore * ServerConstants.pingWeight + speedScore * ServerConstants.speedWeight) * ServerConstants.speedScoreMultiplier * protocolBonus;
   }
 
   // Check if server supports UDP (based on common VPNGate patterns)
   bool get hasUdpSupport {
-    // VPNGate servers typically support both TCP and UDP
-    // We'll assume UDP support unless explicitly TCP-only
-    return !(HostName?.toLowerCase().contains('tcp') ?? false) && 
-           !(HostName?.toLowerCase().contains('443') ?? false);
+    if (HostName == null) return true; // Default to UDP if unknown
+    
+    final hostname = HostName!.toLowerCase();
+    
+    // Explicit TCP indicators
+    if (ServerConstants.tcpKeywords.any((keyword) => hostname.contains(keyword))) {
+      return false;
+    }
+    
+    // Explicit UDP indicators
+    if (ServerConstants.udpKeywords.any((keyword) => hostname.contains(keyword))) {
+      return true;
+    }
+    
+    // Default to UDP for VPNGate servers (most support both, but UDP is preferred)
+    return true;
   }
 
   // Check if server has valid OpenVPN config
   bool get hasValidConfig => 
       OpenVPN_ConfigData_Base64 != null && 
       OpenVPN_ConfigData_Base64!.isNotEmpty &&
-      OpenVPN_ConfigData_Base64!.length > 100; // Basic validation
+      OpenVPN_ConfigData_Base64!.length > ServerConstants.minConfigLength; // Basic validation
 }
 
 class CloudflareWarp {

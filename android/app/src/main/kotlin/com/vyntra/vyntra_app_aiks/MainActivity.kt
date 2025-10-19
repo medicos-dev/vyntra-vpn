@@ -13,6 +13,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val methodChannelName = "vpnControl"
     private val eventChannelName = "vpnStage"
+    private val notificationActionChannelName = "vyntra.vpn.actions"
 
     @Volatile
     private var stageSink: EventChannel.EventSink? = null
@@ -83,6 +84,19 @@ class MainActivity : FlutterActivity() {
                                 result.error("UNAVAILABLE", "Unable to open settings", e2.message)
                             }
                         }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        // Notification action channel to handle disconnect from notification
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, notificationActionChannelName)
+            .setMethodCallHandler { call: MethodCall, result: MethodChannel.Result ->
+                when (call.method) {
+                    "disconnect" -> {
+                        Log.d("VPNControl", "Disconnect requested from notification")
+                        emitStage("disconnected")
+                        result.success(true)
                     }
                     else -> result.notImplemented()
                 }

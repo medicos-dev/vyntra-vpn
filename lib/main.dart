@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'features/home/home_screen.dart';
+import 'core/notify/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize notification service early in app lifecycle
+  await NotificationService().init();
   
   runApp(const ProviderScope(child: VyntraApp()));
 }

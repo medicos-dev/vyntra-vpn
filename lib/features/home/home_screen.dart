@@ -9,6 +9,7 @@ import '../servers/server_list_screen.dart';
 import '../settings/settings_screen.dart';
 import 'package:vyntra_app_aiks/core/network/apis.dart';
 import 'package:vyntra_app_aiks/core/models/vpndart.dart';
+import '../../core/constants/server_constants.dart';
 
 final vpngateProvider = Provider((ref) => VpnGateService());
 final unifiedVpnProvider = Provider((ref) => UnifiedVpnService());
@@ -99,7 +100,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           fetched.sort((a, b) {
             final scoreComparison = b.intelligentScore.compareTo(a.intelligentScore);
             if (scoreComparison != 0) return scoreComparison;
-            return (a.Ping ?? 9999).compareTo(b.Ping ?? 9999);
+            return (a.Ping ?? ServerConstants.maxPing).compareTo(b.Ping ?? ServerConstants.maxPing);
           });
           // Map to existing VpnServer shape only where needed; keep original keys for connect path
           servers = fetched.map((s) => VpnServer(
@@ -111,7 +112,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
             protocol: VpnProtocol.openvpn,
             port: 0,
             speedBps: s.Speed ?? 0,
-            pingMs: s.Ping ?? 9999,
+            pingMs: s.Ping ?? ServerConstants.maxPing,
             ovpnBase64: s.OpenVPN_ConfigData_Base64 ?? '',
           )).toList();
           _loadingServers = false;
@@ -146,7 +147,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           fetched.sort((a, b) {
             final scoreComparison = b.intelligentScore.compareTo(a.intelligentScore);
             if (scoreComparison != 0) return scoreComparison;
-            return (a.Ping ?? 9999).compareTo(b.Ping ?? 9999);
+            return (a.Ping ?? ServerConstants.maxPing).compareTo(b.Ping ?? ServerConstants.maxPing);
           });
           servers = fetched.map((s) => VpnServer(
             id: s.HostName ?? '',
@@ -157,7 +158,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
             protocol: VpnProtocol.openvpn,
             port: 0,
             speedBps: s.Speed ?? 0,
-            pingMs: s.Ping ?? 9999,
+            pingMs: s.Ping ?? ServerConstants.maxPing,
             ovpnBase64: s.OpenVPN_ConfigData_Base64 ?? '',
           )).toList();
           _loadingServers = false;

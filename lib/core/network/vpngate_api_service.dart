@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../constants/server_constants.dart';
 
 class VpnGateServer {
+
   final String hostName;
   final String ip;
   final int score;
@@ -41,7 +43,7 @@ class VpnGateServer {
       hostName: fields[0],
       ip: fields[1],
       score: int.tryParse(fields[2]) ?? 0,
-      ping: int.tryParse(fields[3]) ?? 9999,
+      ping: int.tryParse(fields[3]) ?? ServerConstants.maxPing,
       speed: int.tryParse(fields[4]) ?? 0,
       countryLong: fields[5],
       countryShort: fields[6],
@@ -61,28 +63,38 @@ class VpnGateServer {
     if (score > 0) return score.toDouble();
     
     // Calculate score based on ping (lower is better) and speed (higher is better)
-    final pingScore = (ping > 0) ? (1000.0 / ping.clamp(1, 1000)) : 0.0;
-    final speedScore = (speed > 0) ? (speed / 1000000.0) : 0.0; // Convert to Mbps
+    final pingScore = (ping > 0) ? (ServerConstants.pingScoreMultiplier / ping.clamp(1, 1000)) : 0.0;
+    final speedScore = (speed > 0) ? (speed / ServerConstants.speedToMbpsDivisor) : 0.0; // Convert to Mbps
     
     // Protocol bonus: UDP gets higher priority (avoids TCP meltdown)
-    final protocolBonus = hasUdpSupport ? 1.5 : 1.0;
+    final protocolBonus = hasUdpSupport ? ServerConstants.udpProtocolBonus : ServerConstants.tcpProtocolBonus;
     
-    return (pingScore * 0.7 + speedScore * 0.3) * 1000 * protocolBonus;
+    return (pingScore * ServerConstants.pingWeight + speedScore * ServerConstants.speedWeight) * ServerConstants.speedScoreMultiplier * protocolBonus;
   }
 
   // Check if server supports UDP (based on common VPNGate patterns)
   bool get hasUdpSupport {
-    // VPNGate servers typically support both TCP and UDP
-    // We'll assume UDP support unless explicitly TCP-only
-    return !hostName.toLowerCase().contains('tcp') && 
-           !hostName.toLowerCase().contains('443');
+    final hostname = hostName.toLowerCase();
+    
+    // Explicit TCP indicators
+    if (ServerConstants.tcpKeywords.any((keyword) => hostname.contains(keyword))) {
+      return false;
+    }
+    
+    // Explicit UDP indicators
+    if (ServerConstants.udpKeywords.any((keyword) => hostname.contains(keyword))) {
+      return true;
+    }
+    
+    // Default to UDP for VPNGate servers (most support both, but UDP is preferred)
+    return true;
   }
 
   // Check if server has valid OpenVPN config
   bool get hasValidConfig => 
       openvpnConfigDataBase64 != null && 
       openvpnConfigDataBase64!.isNotEmpty &&
-      openvpnConfigDataBase64!.length > 100; // Basic validation
+      openvpnConfigDataBase64!.length > ServerConstants.minConfigLength; // Basic validation
 }
 
 class VpnGateApiService {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:openvpn_flutter/openvpn_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -135,6 +136,12 @@ class VpnController extends StateNotifier<VpnState> {
       throw Exception('Failed to decode OpenVPN configuration');
     }
 
+    // Check internet reachability before attempting connection
+    final hasInternet = await _checkInternetReachability();
+    if (!hasInternet) {
+      throw Exception('No internet connection available - please check your network');
+    }
+
     // Apply OpenVPN3-compatible adjustments
     final adjustedConfig = _applyOpenVpn3Adjustments(ovpnConfig, server.ip);
 
@@ -162,22 +169,9 @@ class VpnController extends StateNotifier<VpnState> {
       password: 'vpn',
     );
 
-    // Wait for connection confirmation
-    await Future.delayed(const Duration(seconds: 2));
+    // Wait for connection confirmation (single wait period)
+    await Future.delayed(const Duration(seconds: 5));
     
-    if (state == VpnState.connected) {
-      _connectionTimeout?.cancel();
-      return true;
-    } else if (state == VpnState.failed) {
-      _connectionTimeout?.cancel();
-      _engine?.disconnect(); // Clean up failed connection
-      return false;
-    }
-
-    // If still connecting, wait a bit more
-    await Future.delayed(const Duration(seconds: 3));
-    
-    // Final check after waiting
     if (state == VpnState.connected) {
       _connectionTimeout?.cancel();
       return true;
@@ -256,16 +250,45 @@ class VpnController extends StateNotifier<VpnState> {
     return adjusted;
   }
 
-  /// Request VPN permission from the system
+  /// Check internet reachability before attempting VPN connection
+  Future<bool> _checkInternetReachability() async {
+    try {
+      // Quick ping to well-known DNS servers to verify internet access
+      final dnsServers = ['8.8.8.8', '1.1.1.1', '208.67.222.222'];
+      
+      for (final dns in dnsServers) {
+        try {
+          final result = await InternetAddress.lookup(dns).timeout(
+            const Duration(seconds: 3),
+          );
+          if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
+            print('✅ Internet reachability confirmed via $dns');
+            return true;
+          }
+        } catch (e) {
+          print('⚠️ DNS lookup failed for $dns: $e');
+          continue;
+        }
+      }
+      
+      print('❌ No internet reachability detected');
+      return false;
+    } catch (e) {
+      print('❌ Internet reachability check failed: $e');
+      return false;
+    }
+  }
+
+  /// Prepare for VPN connection (permission will be requested by plugin)
   Future<bool> _requestVpnPermission() async {
     try {
-      // The openvpn_flutter plugin handles permission requests internally
-      // when connect() is called. We return true here and let the plugin
-      // handle the permission dialog. If permission is denied, the plugin
-      // will emit an error stage that we handle in _handleNativeStage.
+      // The openvpn_flutter plugin automatically requests VPN permission
+      // when connect() is called. This method is a placeholder for future
+      // pre-connection checks (e.g., Android 12+ background restrictions).
+      // The plugin will show the system permission dialog if needed.
       return true;
     } catch (e) {
-      print('❌ VPN permission request failed: $e');
+      print('❌ VPN preparation failed: $e');
       return false;
     }
   }
@@ -313,7 +336,7 @@ class VpnController extends StateNotifier<VpnState> {
       } else if (stageStr.contains('timeout') || stageStr.contains('timed out')) {
         _lastError = 'Connection timeout - server did not respond';
         _set(VpnState.failed);
-      } else if (stageStr.contains('no') || stageStr.contains('connection')) {
+      } else if (stageStr.contains('no') && stageStr.contains('connection')) {
         _lastError = 'No network connection available';
         _set(VpnState.failed);
       } else if (stageStr.contains('device') || stageStr.contains('supported')) {
