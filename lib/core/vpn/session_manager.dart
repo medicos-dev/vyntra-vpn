@@ -55,10 +55,20 @@ class SessionManager {
   }
   
   Future<void> startSession() async {
-    _sessionStartTime = DateTime.now();
-    await _saveSessionData();
+    // Make idempotent: do not reset the start time if already set/persisted
+    if (_sessionStartTime == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final persisted = prefs.getInt(_sessionKey);
+      if (persisted != null) {
+        _sessionStartTime = DateTime.fromMillisecondsSinceEpoch(persisted);
+      } else {
+        _sessionStartTime = DateTime.now();
+        await _saveSessionData();
+      }
+      _statusController.add(SessionStatus.active);
+    }
+    // Ensure the ticking timer is active
     _startSessionTimer();
-    _statusController.add(SessionStatus.active);
   }
   
   Future<void> endSession() async {

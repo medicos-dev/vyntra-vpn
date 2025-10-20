@@ -75,6 +75,9 @@ class VpnController extends StateNotifier<VpnState> {
   Timer? _connectionCheckTimer;
   bool _notificationShown = false; // Track if notification is already shown
   final SessionManager _sessionManager = SessionManager();
+  // Cache of last servers fetch to avoid hammering the API; refetch after 30s
+  DateTime? _lastServersFetchAt;
+  List<AllServers>? _lastFetchedServers;
 
   /// Convert AllServers to VpnGateServer for compatibility
   VpnGateServer _convertAllServersToVpnGateServer(AllServers server) {
@@ -165,8 +168,19 @@ class VpnController extends StateNotifier<VpnState> {
       _set(VpnState.connecting);
       _lastError = '';
 
-      // Fetch servers from original APIs service
-      final servers = await APIs.getVPNServers();
+      // Fetch servers list with 30s revalidation window
+      List<AllServers> servers;
+      final now = DateTime.now();
+      final shouldRefetch = _lastServersFetchAt == null || now.difference(_lastServersFetchAt!).inSeconds >= 30;
+      if (shouldRefetch || _lastFetchedServers == null || _lastFetchedServers!.isEmpty) {
+        servers = await APIs.getVPNServers();
+        _lastFetchedServers = servers;
+        _lastServersFetchAt = now;
+        print('🌐 Servers refetched (${servers.length}) at ${now.toIso8601String()}');
+      } else {
+        servers = _lastFetchedServers!;
+        print('🗂️ Using cached servers (${servers.length}), fetched ${now.difference(_lastServersFetchAt!).inSeconds}s ago');
+      }
       if (servers.isEmpty) {
         _lastError = 'No VPN servers available. Please check your internet connection.';
         _set(VpnState.failed);
@@ -332,7 +346,7 @@ class VpnController extends StateNotifier<VpnState> {
         _connectionTimeout?.cancel();
         _stopConnectionCheckTimer();
         _set(VpnState.connected);
-        _sessionManager.startSession();
+        await _sessionManager.startSession();
         // Save server info for future reference
         await _saveCurrentServer(server);
         // Start notification update timer
@@ -363,7 +377,7 @@ class VpnController extends StateNotifier<VpnState> {
       _connectionTimeout?.cancel();
       _stopConnectionCheckTimer();
       _set(VpnState.connected);
-      _sessionManager.startSession();
+      await _sessionManager.startSession();
       // Save server info for future reference
       await _saveCurrentServer(server);
       // Don't start notification update timer to prevent spamming
@@ -488,7 +502,7 @@ class VpnController extends StateNotifier<VpnState> {
           timer.cancel();
           _connectionTimeout?.cancel();
           _set(VpnState.connected);
-          _sessionManager.startSession();
+          await _sessionManager.startSession();
           // await _startBackgroundService(); // Temporarily disabled to prevent crashes
           // Don't start notification update timer to prevent spamming
           // _startNotificationUpdateTimer();
@@ -648,7 +662,7 @@ class VpnController extends StateNotifier<VpnState> {
       
       _set(VpnState.connected);
       // Start session when correcting state to connected
-      _sessionManager.startSession();
+      await _sessionManager.startSession();
       // Don't start notification update timer to prevent spamming
       // _startNotificationUpdateTimer();
       print('🔔 About to show notification - currentServer: ${_currentServer?.countryLong ?? 'null'}');
@@ -926,7 +940,7 @@ class VpnController extends StateNotifier<VpnState> {
 
 
   /// Handle native stage changes
-  void _handleNativeStage(dynamic stage) {
+  void _handleNativeStage(dynamic stage) async {
     if (stage is String) {
       print('🔄 Native Stage: $stage');
       
@@ -950,7 +964,7 @@ class VpnController extends StateNotifier<VpnState> {
         print('✅ Connection established!');
         _connectionTimeout?.cancel();
         _set(VpnState.connected);
-        _sessionManager.startSession();
+        await _sessionManager.startSession();
         // Don't start notification update timer to prevent spamming
         // _startNotificationUpdateTimer();
         // Show our custom static notification immediately (only if not already shown)
