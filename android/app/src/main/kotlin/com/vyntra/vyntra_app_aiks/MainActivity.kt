@@ -19,6 +19,7 @@ class MainActivity : FlutterActivity() {
     private val eventChannelName = "vpnStage"
     private val notificationActionChannelName = "vyntra.vpn.actions"
     private val batteryOptimizationChannelName = "vyntra.battery.optimization"
+    private val vpnStatusChannelName = "vyntra.vpn.status"
 
     @Volatile
     private var stageSink: EventChannel.EventSink? = null
@@ -134,6 +135,18 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        // VPN status channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, vpnStatusChannelName)
+            .setMethodCallHandler { call: MethodCall, result: MethodChannel.Result ->
+                when (call.method) {
+                    "isVpnConnected" -> {
+                        val isConnected = isVpnConnected()
+                        result.success(isConnected)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
     }
 
     private fun emitStage(stage: String) {
@@ -192,6 +205,28 @@ class MainActivity : FlutterActivity() {
     private fun stopBackgroundService() {
         val intent = Intent(this, VpnBackgroundService::class.java)
         stopService(intent)
+    }
+
+    private fun isVpnConnected(): Boolean {
+        return try {
+            // Check if VPN service is running
+            val vpnService = android.net.VpnService.prepare(this)
+            if (vpnService != null) {
+                // VPN service is not prepared, so not connected
+                false
+            } else {
+                // Check if there's an active VPN connection
+                val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                val activeNetwork = connectivityManager.activeNetwork
+                val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
+                
+                // Check if the active network has VPN transport
+                networkCapabilities?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error checking VPN status", e)
+            false
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

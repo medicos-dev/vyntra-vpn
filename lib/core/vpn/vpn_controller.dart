@@ -70,6 +70,7 @@ class VpnController extends StateNotifier<VpnState> {
   String _lastError = '';
   VpnGateServer? _currentServer;
   Timer? _connectionTimeout;
+  Timer? _connectionCheckTimer;
   final SessionManager _sessionManager = SessionManager();
 
   /// Convert AllServers to VpnGateServer for compatibility
@@ -240,13 +241,17 @@ class VpnController extends StateNotifier<VpnState> {
 
     // Start connection timeout
     _connectionTimeout?.cancel();
-    _connectionTimeout = Timer(const Duration(seconds: 30), () {
+    _connectionTimeout = Timer(const Duration(seconds: 45), () {
       if (state == VpnState.connecting) {
         _lastError = 'Connection timeout - server did not respond';
         _engine?.disconnect(); // Clean up timed out connection
         _set(VpnState.failed);
+        _stopConnectionCheckTimer();
       }
     });
+
+    // Start continuous connection checking
+    _startConnectionCheckTimer();
 
     // Request VPN permission first
     final hasPermission = await _requestVpnPermission();
@@ -326,17 +331,28 @@ class VpnController extends StateNotifier<VpnState> {
   /// Check if VPN service is actually connected
   Future<bool> _isVpnServiceConnected() async {
     try {
-      // Use the OpenVPN Flutter plugin's status method
+      // Method 1: Check OpenVPN Flutter plugin status
       final status = await _engine?.status;
       print('🔍 VPN Service Status: $status');
       
-      // Check if status indicates connection
       if (status != null) {
         final statusStr = status.toString().toLowerCase();
-        return statusStr.contains('connected') || 
-               statusStr.contains('established') ||
-               statusStr.contains('tun') ||
-               statusStr.contains('tap');
+        if (statusStr.contains('connected') || 
+            statusStr.contains('established') ||
+            statusStr.contains('tun') ||
+            statusStr.contains('tap')) {
+          return true;
+        }
+      }
+      
+      // Method 2: Check via native Android VPN service
+      const platform = MethodChannel('vyntra.vpn.status');
+      try {
+        final isConnected = await platform.invokeMethod('isVpnConnected');
+        print('🔍 Native VPN Status: $isConnected');
+        return isConnected == true;
+      } catch (e) {
+        print('❌ Native VPN status check failed: $e');
       }
       
       return false;
@@ -391,6 +407,37 @@ class VpnController extends StateNotifier<VpnState> {
     }
   }
 
+  /// Start continuous connection checking
+  void _startConnectionCheckTimer() {
+    _connectionCheckTimer?.cancel();
+    _connectionCheckTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+      if (state == VpnState.connecting) {
+        final isConnected = await _isVpnServiceConnected();
+        if (isConnected) {
+          print('✅ Connection detected via timer check!');
+          timer.cancel();
+          _connectionTimeout?.cancel();
+          _set(VpnState.connected);
+          _sessionManager.startSession();
+          await _startBackgroundService();
+          NotificationService().showConnected(
+            title: 'VPN Connected',
+            body: 'Connected to ${_currentServer?.countryLong ?? 'Unknown'}',
+          );
+        }
+      } else if (state == VpnState.connected) {
+        // Stop timer when connected
+        timer.cancel();
+      }
+    });
+  }
+
+  /// Stop connection checking timer
+  void _stopConnectionCheckTimer() {
+    _connectionCheckTimer?.cancel();
+    _connectionCheckTimer = null;
+  }
+
   /// Start background service to keep VPN running
   Future<void> _startBackgroundService() async {
     try {
@@ -413,8 +460,24 @@ class VpnController extends StateNotifier<VpnState> {
     }
   }
 
-  /// Refresh VPN stage
-  void refreshStage() {
+  /// Refresh VPN stage and check actual connection status
+  Future<void> refreshStage() async {
+    // Check if we're actually connected but state shows otherwise
+    if (state == VpnState.connecting || state == VpnState.disconnected) {
+      final isConnected = await _isVpnServiceConnected();
+      if (isConnected && state != VpnState.connected) {
+        print('🔄 Refreshing stage - VPN is actually connected!');
+        _set(VpnState.connected);
+        _sessionManager.startSession();
+        await _startBackgroundService();
+        NotificationService().showConnected(
+          title: 'VPN Connected',
+          body: 'Connected to ${_currentServer?.countryLong ?? 'Unknown'}',
+        );
+        return;
+      }
+    }
+    
     // Emit current state to listeners
     _set(state);
   }
@@ -423,6 +486,7 @@ class VpnController extends StateNotifier<VpnState> {
   Future<void> disconnect() async {
     try {
       _connectionTimeout?.cancel();
+      _stopConnectionCheckTimer();
       _engine?.disconnect();
       _set(VpnState.disconnected);
       await _sessionManager.endSession();
@@ -718,6 +782,7 @@ class VpnController extends StateNotifier<VpnState> {
   void dispose() {
     _stageSub?.cancel();
     _connectionTimeout?.cancel();
+    _stopConnectionCheckTimer();
     _engine?.disconnect();
     super.dispose();
   }
