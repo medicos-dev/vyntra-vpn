@@ -187,20 +187,23 @@ class VpnController extends StateNotifier<VpnState> {
         return false;
       }
       
-      // Sort by Score (descending) and Ping (ascending)
+      // Sort by Speed (descending) as primary metric for "Connect Fastest",
+      // then by lower Ping (ascending), then by Score (descending) as tiebreakers
       filteredServers.sort((a, b) {
-        final scoreComparison = (b.Score ?? 0).compareTo(a.Score ?? 0);
-        if (scoreComparison != 0) return scoreComparison;
-        return (a.Ping ?? 9999).compareTo(b.Ping ?? 9999);
+        final speedComparison = (b.Speed ?? 0).compareTo(a.Speed ?? 0);
+        if (speedComparison != 0) return speedComparison;
+        final pingComparison = (a.Ping ?? 9999).compareTo(b.Ping ?? 9999);
+        if (pingComparison != 0) return pingComparison;
+        return (b.Score ?? 0).compareTo(a.Score ?? 0);
       });
 
-      print('📊 Top 5 servers by score:');
+      print('📊 Top 5 servers by speed:');
       for (int i = 0; i < filteredServers.length && i < 5; i++) {
         final server = filteredServers[i];
-        print('  ${i + 1}. ${server.HostName} - Score: ${server.Score}, Ping: ${server.Ping}ms, Country: ${server.CountryLong}');
+        print('  ${i + 1}. ${server.HostName} - Speed: ${server.Speed}bps, Ping: ${server.Ping}ms, Score: ${server.Score}, Country: ${server.CountryLong}');
       }
 
-      // Try connecting to the top 3 servers directly
+      // Try connecting to the top 3 fastest servers directly
       final topServers = filteredServers.take(3).toList();
       for (int i = 0; i < topServers.length; i++) {
         final server = topServers[i];

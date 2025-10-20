@@ -11,9 +11,7 @@ class NotificationService {
   static const String _channelId = 'vyntra_vpn_status';
 
   Future<void> init() async {
-    // Request notification permission for Android 13+
-    await _requestNotificationPermission();
-    
+    // Do not request permission here anymore; call it explicitly from Home
     const AndroidInitializationSettings android = AndroidInitializationSettings('ic_notification');
     const InitializationSettings init = InitializationSettings(android: android);
     await _plugin.initialize(init,
@@ -64,6 +62,9 @@ class NotificationService {
       print('❌ Failed to request notification permission: $e');
     }
   }
+
+  // Public wrapper to request permission from UI (Home Screen)
+  Future<void> requestPermissionFromUI() => _requestNotificationPermission();
 
   /// Show a warning notification
   Future<void> showWarning({required String title, required String body}) async {
@@ -120,9 +121,6 @@ class NotificationService {
         onlyAlertOnce: true, // Only alert once for static notification
         importance: Importance.max,
         priority: Priority.max,
-        actions: <AndroidNotificationAction>[
-          const AndroidNotificationAction('disconnect', 'Disconnect', showsUserInterface: false, cancelNotification: false)
-        ],
         styleInformation: BigTextStyleInformation(body),
         showWhen: true,
         when: DateTime.now().millisecondsSinceEpoch,
@@ -152,9 +150,6 @@ class NotificationService {
         onlyAlertOnce: false, // Allow alerts for each connection
         importance: Importance.max, // Maximum priority to be primary notification
         priority: Priority.max,
-        actions: <AndroidNotificationAction>[
-          const AndroidNotificationAction('disconnect', 'Disconnect', showsUserInterface: false, cancelNotification: false)
-        ],
         styleInformation: BigTextStyleInformation(enhancedBody),
         showWhen: true,
         when: DateTime.now().millisecondsSinceEpoch,

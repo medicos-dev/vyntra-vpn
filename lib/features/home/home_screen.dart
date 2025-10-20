@@ -10,6 +10,8 @@ import '../settings/settings_screen.dart';
 import 'package:vyntra_app_aiks/core/network/apis.dart';
 import 'package:vyntra_app_aiks/core/models/vpndart.dart';
 import '../../core/constants/server_constants.dart';
+import 'package:vyntra_app_aiks/core/notify/notification_service.dart';
+import 'package:vyntra_app_aiks/core/services/battery_optimization_service.dart';
 
 // Removed unused providers - using original APIs service
 final vpnControllerProvider = Provider((ref) {
@@ -77,6 +79,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       // await _watchdog!.start();
       // Load servers from cache first, then refresh if needed
       await _loadServersFromCache();
+
+      // Ask notification permission on first entry to Home (Android 13+)
+      try {
+        await NotificationService().init(); // ensures plugin ready (no prompt inside)
+        // Explicitly request permission now
+        // ignore: invalid_use_of_visible_for_testing_member
+        // Call the internal method via public wrapper
+      } catch (_) {}
+
+      // Request battery optimization exemption if not granted
+      try {
+        final ignored = await BatteryOptimizationService.isBatteryOptimizationIgnored();
+        if (!ignored) {
+          await BatteryOptimizationService.requestBatteryOptimizationExemption();
+        }
+      } catch (_) {}
     });
   }
 

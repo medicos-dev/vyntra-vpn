@@ -2,54 +2,34 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'features/home/home_screen.dart';
+import 'features/splash/splash_screen.dart';
 import 'core/notify/notification_service.dart';
-import 'core/services/battery_optimization_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize notification service early in app lifecycle
+  // Initialize notification service (no permission request here)
   await NotificationService().init();
+
+  // Preload theme synchronously before runApp to avoid first-tap glitch
+  final prefs = await SharedPreferences.getInstance();
+  final themeIndex = prefs.getInt('theme_mode') ?? 0;
+  final initialMode = ThemeMode.values[themeIndex];
   
-  // Check if this is first launch and request battery optimization
-  await _checkFirstLaunch();
-  
-  runApp(const ProviderScope(child: VyntraApp()));
+  runApp(ProviderScope(child: VyntraApp(initialMode: initialMode)));
 }
 
-Future<void> _checkFirstLaunch() async {
-  final prefs = await SharedPreferences.getInstance();
-  final isFirstLaunch = prefs.getBool('is_first_launch') ?? true;
-  
-  if (isFirstLaunch) {
-    // Request battery optimization exemption on first launch
-    await BatteryOptimizationService.requestBatteryOptimizationExemption();
-    await prefs.setBool('is_first_launch', false);
-  }
-}
+// Removed first-launch battery request; handled on Home entry
 
 class VyntraApp extends StatefulWidget {
-  const VyntraApp({super.key});
+  final ThemeMode initialMode;
+  const VyntraApp({super.key, required this.initialMode});
   @override
   State<VyntraApp> createState() => _VyntraAppState();
 }
 
 class _VyntraAppState extends State<VyntraApp> {
-  ThemeMode _mode = ThemeMode.system;
-  
-  @override
-  void initState() {
-    super.initState();
-    _loadTheme();
-  }
-
-  Future<void> _loadTheme() async {
-    final prefs = await SharedPreferences.getInstance();
-    final themeIndex = prefs.getInt('theme_mode') ?? 0;
-    setState(() {
-      _mode = ThemeMode.values[themeIndex];
-    });
-  }
+  late ThemeMode _mode = widget.initialMode;
 
   void _setMode(ThemeMode mode) async {
     setState(() {
@@ -84,9 +64,12 @@ class _VyntraAppState extends State<VyntraApp> {
         dividerColor: const Color(0xFF333333),
       ),
       themeMode: _mode,
-      home: HomeScreen(
-        onThemeChange: _setMode, 
-        currentMode: _mode,
+      home: SplashScreen(
+        onReady: () => Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => HomeScreen(onThemeChange: _setMode, currentMode: _mode),
+          ),
+        ),
       ),
       debugShowCheckedModeBanner: false,
     );
