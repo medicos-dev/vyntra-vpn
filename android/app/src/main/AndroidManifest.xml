@@ -50,6 +50,8 @@
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
+            <!-- Disable OpenVPN's built-in notification to use our custom one -->
+            <meta-data android:name="de.blinkt.openvpn.NOTIFICATION_ALWAYS_VISIBLE" android:value="false" />
         </service>
 
         <service

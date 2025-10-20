@@ -80,9 +80,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
       final ctrl = ref.read(vpnControllerProvider);
-      // Immediately refresh stage without delay
+      // Immediately refresh stage without delay for faster performance
       ctrl.refreshStage();
-      print('🔄 App resumed - refreshing VPN state immediately');
+      print('🔄 App resumed - refreshing VPN state immediately for fast performance');
     }
   }
 

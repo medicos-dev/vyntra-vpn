@@ -19,16 +19,21 @@ class NotificationService {
     await _plugin.initialize(init,
       onDidReceiveNotificationResponse: (resp) async {
         print('🔔 Notification response: ${resp.actionId}, payload: ${resp.payload}');
+        
+        // Bring app to foreground immediately for any notification interaction
+        const platform = MethodChannel('vyntra.vpn.actions');
+        try { 
+          await platform.invokeMethod('bringToForeground');
+          print('✅ App brought to foreground from notification');
+        } catch (e) {
+          print('❌ Failed to bring app to foreground: $e');
+        }
+        
         if (resp.payload == 'disconnect' || resp.actionId == 'disconnect') {
           // Use the platform channel to emit disconnected stage
-          const platform = MethodChannel('vyntra.vpn.actions');
           try { 
             await platform.invokeMethod('disconnect');
             print('✅ Disconnect stage emitted from notification');
-            
-            // Bring app to foreground after disconnect
-            await platform.invokeMethod('bringToForeground');
-            print('✅ App brought to foreground');
           } catch (e) {
             print('❌ Failed to emit disconnect stage from notification: $e');
           }
@@ -40,10 +45,10 @@ class NotificationService {
       _channelId,
       'VPN Status',
       description: 'Shows the current VPN connection status',
-      importance: Importance.low,
+      importance: Importance.max, // Highest priority to ensure our notification is primary
       playSound: false,
       enableVibration: false,
-      showBadge: false,
+      showBadge: true,
     );
     await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(channel);
   }
@@ -60,12 +65,15 @@ class NotificationService {
     }
   }
 
-  Future<void> showConnected({required String title, required String body, String? uploadSpeed, String? downloadSpeed}) async {
+  Future<void> showConnected({required String title, required String body, String? uploadSpeed, String? downloadSpeed, String? sessionTime}) async {
     try {
-      // Create enhanced body with traffic stats
+      // Create enhanced body with traffic stats and session time
       String enhancedBody = body;
       if (uploadSpeed != null && downloadSpeed != null) {
         enhancedBody += '\n📊 ↑ $uploadSpeed ↓ $downloadSpeed';
+      }
+      if (sessionTime != null) {
+        enhancedBody += '\n⏱️ $sessionTime';
       }
       
       final AndroidNotificationDetails android = AndroidNotificationDetails(
@@ -74,8 +82,8 @@ class NotificationService {
         channelDescription: 'Shows the current VPN connection status',
         ongoing: true,
         onlyAlertOnce: false, // Allow alerts for each connection
-        importance: Importance.high, // Make it more visible
-        priority: Priority.high,
+        importance: Importance.max, // Maximum priority to be primary notification
+        priority: Priority.max,
         actions: <AndroidNotificationAction>[
           const AndroidNotificationAction('disconnect', 'Disconnect', showsUserInterface: false, cancelNotification: false)
         ],
@@ -103,6 +111,7 @@ class NotificationService {
       body: body,
       uploadSpeed: uploadSpeed,
       downloadSpeed: downloadSpeed,
+      sessionTime: sessionTime,
     );
   }
 

@@ -73,6 +73,7 @@ class VpnController extends StateNotifier<VpnState> {
   VpnGateServer? _currentServer;
   Timer? _connectionTimeout;
   Timer? _connectionCheckTimer;
+  Timer? _notificationUpdateTimer;
   final SessionManager _sessionManager = SessionManager();
 
   /// Convert AllServers to VpnGateServer for compatibility
@@ -114,6 +115,30 @@ class VpnController extends StateNotifier<VpnState> {
       // Listen to native stage channel
       _stageChannel.receiveBroadcastStream().listen(_handleNativeStage);
       
+      // Load last known state early to reduce UI delay
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final last = prefs.getString('vpn_last_state');
+        if (last != null) {
+          switch (last) {
+            case 'connected':
+              state = VpnState.connected;
+              break;
+            case 'connecting':
+              state = VpnState.connecting;
+              break;
+            case 'reconnecting':
+              state = VpnState.reconnecting;
+              break;
+            case 'failed':
+              state = VpnState.failed;
+              break;
+            default:
+              state = VpnState.disconnected;
+          }
+        }
+      } catch (_) {}
+
       // Load saved server info if available
       _currentServer = await _loadCurrentServer();
       
@@ -296,12 +321,9 @@ class VpnController extends StateNotifier<VpnState> {
         _sessionManager.startSession();
         // Save server info for future reference
         await _saveCurrentServer(server);
+        // Start notification update timer
+        _startNotificationUpdateTimer();
         // await _startBackgroundService(); // Temporarily disabled to prevent crashes
-        NotificationService().showConnected(
-          title: 'VPN Connected',
-          body: 'Connected to ${server.countryLong}',
-        );
-        print('✅ Notification should be shown');
         return true;
       }
       
@@ -309,6 +331,8 @@ class VpnController extends StateNotifier<VpnState> {
         print('✅ Connection successful!');
         _connectionTimeout?.cancel();
         _stopConnectionCheckTimer();
+        // Start notification update timer
+        _startNotificationUpdateTimer();
         return true;
       } else if (state == VpnState.failed) {
         print('❌ Connection failed!');
@@ -328,12 +352,9 @@ class VpnController extends StateNotifier<VpnState> {
       _sessionManager.startSession();
       // Save server info for future reference
       await _saveCurrentServer(server);
+      // Start notification update timer
+      _startNotificationUpdateTimer();
       // await _startBackgroundService(); // Temporarily disabled to prevent crashes
-      NotificationService().showConnected(
-        title: 'VPN Connected',
-        body: 'Connected to ${server.countryLong}',
-      );
-      print('✅ Notification should be shown (final check)');
       return true;
     }
     
@@ -397,12 +418,15 @@ class VpnController extends StateNotifier<VpnState> {
     }
   }
 
-  /// Format bytes to human readable format
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '${bytes}B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)}GB';
+  /// Format speed in kbit/s/mbit/s format like in screenshot
+  String _formatSpeed(int bytesPerSecond) {
+    if (bytesPerSecond < 1024) {
+      return '${bytesPerSecond} bps';
+    } else if (bytesPerSecond < 1024 * 1024) {
+      return '${(bytesPerSecond / 1024).toStringAsFixed(1)} kbps';
+    } else {
+      return '${(bytesPerSecond / (1024 * 1024)).toStringAsFixed(1)} mbps';
+    }
   }
 
   /// Update notification with current stats
@@ -412,12 +436,17 @@ class VpnController extends StateNotifier<VpnState> {
       final bytesIn = int.tryParse(stats['bytesIn'] ?? '0') ?? 0;
       final bytesOut = int.tryParse(stats['bytesOut'] ?? '0') ?? 0;
       
-      await NotificationService().updateConnectedNotification(
+      // Format speeds in kbit/s/mbit/s format like in screenshot
+      final uploadSpeed = _formatSpeed(bytesOut);
+      final downloadSpeed = _formatSpeed(bytesIn);
+      final sessionTime = stats['sessionTime'];
+      
+      await NotificationService().showConnected(
         title: 'VPN Connected',
         body: 'Connected to ${_currentServer!.countryLong}',
-        uploadSpeed: _formatBytes(bytesOut),
-        downloadSpeed: _formatBytes(bytesIn),
-        sessionTime: stats['sessionTime'],
+        uploadSpeed: uploadSpeed,
+        downloadSpeed: downloadSpeed,
+        sessionTime: sessionTime,
       );
     }
   }
@@ -451,6 +480,22 @@ class VpnController extends StateNotifier<VpnState> {
   void _stopConnectionCheckTimer() {
     _connectionCheckTimer?.cancel();
     _connectionCheckTimer = null;
+  }
+
+  /// Start notification update timer
+  void _startNotificationUpdateTimer() {
+    _notificationUpdateTimer?.cancel();
+    _notificationUpdateTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      if (state == VpnState.connected) {
+        await updateNotification();
+      }
+    });
+  }
+
+  /// Stop notification update timer
+  void _stopNotificationUpdateTimer() {
+    _notificationUpdateTimer?.cancel();
+    _notificationUpdateTimer = null;
   }
 
   // Background service methods temporarily disabled to prevent crashes
@@ -548,6 +593,8 @@ class VpnController extends StateNotifier<VpnState> {
       _set(VpnState.connected);
       // Start session when correcting state to connected
       _sessionManager.startSession();
+      // Start notification update timer
+      _startNotificationUpdateTimer();
       NotificationService().showConnected(
         title: 'VPN Connected',
         body: 'Connected to ${_currentServer?.countryLong ?? 'Unknown'}',
@@ -571,6 +618,7 @@ class VpnController extends StateNotifier<VpnState> {
       print('🔌 Starting VPN disconnect...');
       _connectionTimeout?.cancel();
       _stopConnectionCheckTimer();
+      _stopNotificationUpdateTimer();
       
       // Disconnect from OpenVPN
       if (_engine != null) {
@@ -825,9 +873,13 @@ class VpnController extends StateNotifier<VpnState> {
       if (stageStr.contains('disconnected')) {
         print('❌ Disconnected');
         _stopConnectionCheckTimer();
+        _stopNotificationUpdateTimer();
         _set(VpnState.disconnected);
         _sessionManager.endSession();
         NotificationService().showDisconnected();
+        // Bring app to foreground after any system-tray or OS-triggered disconnect
+        const platform = MethodChannel('vyntra.vpn.actions');
+        try { platform.invokeMethod('bringToForeground'); } catch (_) {}
       } else if (stageStr.contains('connecting') || stageStr.contains('wait')) {
         print('🔄 Still connecting...');
         _set(VpnState.connecting);
@@ -836,10 +888,13 @@ class VpnController extends StateNotifier<VpnState> {
         _connectionTimeout?.cancel();
         _set(VpnState.connected);
         _sessionManager.startSession();
+        // Start notification update timer
+        _startNotificationUpdateTimer();
+        // Show our custom notification immediately
         NotificationService().showConnected(
           title: 'VPN Connected',
           body: 'Connected to ${_currentServer?.countryLong ?? 'Unknown'}',
-        );
+        ).catchError((e) => print('❌ Failed to show notification: $e'));
       } else if (stageStr.contains('reconnecting')) {
         print('🔄 Reconnecting...');
         _set(VpnState.reconnecting);
@@ -874,6 +929,14 @@ class VpnController extends StateNotifier<VpnState> {
     if (state != newState) {
       state = newState;
       print('📱 VPN State: $newState');
+      // Persist last known state to reduce UI delay on resume/relaunch
+      SharedPreferences.getInstance().then((p) => p.setString('vpn_last_state', switch (newState) {
+        VpnState.connected => 'connected',
+        VpnState.connecting => 'connecting',
+        VpnState.reconnecting => 'reconnecting',
+        VpnState.failed => 'failed',
+        _ => 'disconnected',
+      })).ignore();
     }
   }
 
@@ -883,6 +946,7 @@ class VpnController extends StateNotifier<VpnState> {
     _stageSub?.cancel();
     _connectionTimeout?.cancel();
     _stopConnectionCheckTimer();
+    _stopNotificationUpdateTimer();
     _engine?.disconnect();
     super.dispose();
   }

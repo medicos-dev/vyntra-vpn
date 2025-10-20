@@ -216,10 +216,12 @@ class MainActivity : FlutterActivity() {
     private fun bringAppToForeground() {
         try {
             val intent = Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                // Add extra to indicate this was triggered from notification
+                putExtra("from_notification", true)
             }
             startActivity(intent)
-            Log.d("MainActivity", "App brought to foreground")
+            Log.d("MainActivity", "App brought to foreground with cached state")
         } catch (e: Exception) {
             Log.e("MainActivity", "Failed to bring app to foreground", e)
         }
