@@ -116,17 +116,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       margin: const EdgeInsets.all(20),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Theme.of(context).primaryColor.withValues(alpha: 0.1),
-            Theme.of(context).primaryColor.withValues(alpha: 0.05),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF263238) // BlueGrey 900-ish for dark visibility
+            : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Theme.of(context).primaryColor.withValues(alpha: 0.2),
           width: 1,
         ),
       ),
@@ -135,15 +132,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Theme.of(context).primaryColor.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.info_outline_rounded,
               size: 32,
-              color: Theme.of(context).brightness == Brightness.dark 
-                ? Colors.white.withValues(alpha: 0.9) 
-                : Theme.of(context).primaryColor,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white
+                  : Theme.of(context).primaryColor,
             ),
           ),
           const SizedBox(height: 16),

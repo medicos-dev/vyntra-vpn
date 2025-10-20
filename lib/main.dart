@@ -65,7 +65,7 @@ class _VyntraAppState extends State<VyntraApp> {
       ),
       themeMode: _mode,
       home: SplashScreen(
-        next: HomeScreen(onThemeChange: _setMode, currentMode: _mode),
+        next: HomeScreen(onThemeChange: _setMode),
       ),
       debugShowCheckedModeBanner: false,
     );

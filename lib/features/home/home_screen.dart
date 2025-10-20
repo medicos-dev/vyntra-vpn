@@ -27,11 +27,9 @@ final vpnControllerProvider = Provider((ref) {
 
 class HomeScreen extends ConsumerStatefulWidget {
   final void Function(ThemeMode) onThemeChange;
-  final ThemeMode currentMode;
   const HomeScreen({
-    super.key, 
-    required this.onThemeChange, 
-    required this.currentMode,
+    super.key,
+    required this.onThemeChange,
   });
 
   @override
@@ -810,17 +808,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                   : Theme.of(context).primaryColor.withValues(alpha: 0.1),
               child: IconButton(
                 icon: Icon(
-                  widget.currentMode == ThemeMode.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                  Theme.of(context).brightness == Brightness.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
                   color: Theme.of(context).brightness == Brightness.dark 
                       ? Colors.white 
                       : Theme.of(context).primaryColor,
                 ),
                 onPressed: () {
-                  // Switch to opposite theme - single click
-                  final newMode = widget.currentMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+                  final isDark = Theme.of(context).brightness == Brightness.dark;
+                  final newMode = isDark ? ThemeMode.light : ThemeMode.dark;
                   widget.onThemeChange(newMode);
                 },
-                tooltip: widget.currentMode == ThemeMode.dark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+                tooltip: Theme.of(context).brightness == Brightness.dark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
               ),
             ),
           ),
