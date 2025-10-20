@@ -2,7 +2,10 @@ package com.vyntra.vyntra_app_aiks
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -15,6 +18,7 @@ class MainActivity : FlutterActivity() {
     private val methodChannelName = "vpnControl"
     private val eventChannelName = "vpnStage"
     private val notificationActionChannelName = "vyntra.vpn.actions"
+    private val batteryOptimizationChannelName = "vyntra.battery.optimization"
 
     @Volatile
     private var stageSink: EventChannel.EventSink? = null
@@ -99,6 +103,34 @@ class MainActivity : FlutterActivity() {
                         emitStage("disconnected")
                         result.success(true)
                     }
+                    "startBackgroundService" -> {
+                        startBackgroundService()
+                        result.success(true)
+                    }
+                    "stopBackgroundService" -> {
+                        stopBackgroundService()
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        // Battery optimization channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, batteryOptimizationChannelName)
+            .setMethodCallHandler { call: MethodCall, result: MethodChannel.Result ->
+                when (call.method) {
+                    "requestBatteryOptimization" -> {
+                        requestBatteryOptimizationExemption()
+                        result.success(true)
+                    }
+                    "isBatteryOptimizationIgnored" -> {
+                        val isIgnored = isBatteryOptimizationIgnored()
+                        result.success(isIgnored)
+                    }
+                    "openBatteryOptimizationSettings" -> {
+                        openBatteryOptimizationSettings()
+                        result.success(true)
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -111,6 +143,55 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) {
             // ignore sink errors
         }
+    }
+
+    private fun requestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+            if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+            }
+        }
+    }
+
+    private fun isBatteryOptimizationIgnored(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+            powerManager.isIgnoringBatteryOptimizations(packageName)
+        } else {
+            true // For older versions, assume it's ignored
+        }
+    }
+
+    private fun openBatteryOptimizationSettings() {
+        try {
+            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+            startActivity(intent)
+        } catch (e: Exception) {
+            try {
+                val intent = Intent(Settings.ACTION_SETTINGS)
+                startActivity(intent)
+            } catch (e2: Exception) {
+                Log.e("MainActivity", "Failed to open battery optimization settings", e2)
+            }
+        }
+    }
+
+    private fun startBackgroundService() {
+        val intent = Intent(this, VpnBackgroundService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+
+    private fun stopBackgroundService() {
+        val intent = Intent(this, VpnBackgroundService::class.java)
+        stopService(intent)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

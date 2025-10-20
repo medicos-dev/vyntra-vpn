@@ -273,9 +273,23 @@ class VpnController extends StateNotifier<VpnState> {
 
     // Wait for connection confirmation with more detailed logging
     print('⏳ Waiting for connection confirmation...');
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 15; i++) {
       await Future.delayed(const Duration(seconds: 1));
-      print('🔄 Connection check ${i + 1}/10 - State: $state');
+      print('🔄 Connection check ${i + 1}/15 - State: $state');
+      
+      // Check if we're actually connected by testing the VPN service
+      if (await _isVpnServiceConnected()) {
+        print('✅ VPN service is connected! Setting state to connected.');
+        _connectionTimeout?.cancel();
+        _set(VpnState.connected);
+        _sessionManager.startSession();
+        await _startBackgroundService(); // Start background service
+        NotificationService().showConnected(
+          title: 'VPN Connected',
+          body: 'Connected to ${server.countryLong}',
+        );
+        return true;
+      }
       
       if (state == VpnState.connected) {
         print('✅ Connection successful!');
@@ -289,16 +303,113 @@ class VpnController extends StateNotifier<VpnState> {
       }
     }
     
-    // If we get here, connection is still in progress
-    print('⏰ Connection still in progress after 10 seconds, checking final state...');
-    if (state == VpnState.connected) {
+    // Final check - if VPN service is connected, consider it successful
+    if (await _isVpnServiceConnected()) {
+      print('✅ VPN service connected after timeout period!');
       _connectionTimeout?.cancel();
+      _set(VpnState.connected);
+      _sessionManager.startSession();
+      await _startBackgroundService(); // Start background service
+      NotificationService().showConnected(
+        title: 'VPN Connected',
+        body: 'Connected to ${server.countryLong}',
+      );
       return true;
-    } else {
-      print('❌ Connection timed out or failed');
-      _connectionTimeout?.cancel();
-      _engine?.disconnect();
+    }
+    
+    print('❌ Connection timed out or failed');
+    _connectionTimeout?.cancel();
+    _engine?.disconnect();
+    return false;
+  }
+
+  /// Check if VPN service is actually connected
+  Future<bool> _isVpnServiceConnected() async {
+    try {
+      // Use the OpenVPN Flutter plugin's status method
+      final status = await _engine?.status;
+      print('🔍 VPN Service Status: $status');
+      
+      // Check if status indicates connection
+      if (status != null) {
+        final statusStr = status.toString().toLowerCase();
+        return statusStr.contains('connected') || 
+               statusStr.contains('established') ||
+               statusStr.contains('tun') ||
+               statusStr.contains('tap');
+      }
+      
       return false;
+    } catch (e) {
+      print('❌ Error checking VPN service status: $e');
+      return false;
+    }
+  }
+
+  /// Get connection statistics
+  Future<Map<String, String>> getConnectionStats() async {
+    try {
+      // For now, return basic session info since byteCount is not available
+      // TODO: Implement proper byte counting when available
+      return {
+        'bytesIn': '0',
+        'bytesOut': '0',
+        'sessionTime': _sessionManager.formatDuration(_sessionManager.timeRemaining),
+      };
+    } catch (e) {
+      print('❌ Error getting connection stats: $e');
+      return {
+        'bytesIn': '0',
+        'bytesOut': '0',
+        'sessionTime': _sessionManager.formatDuration(_sessionManager.timeRemaining),
+      };
+    }
+  }
+
+  /// Format bytes to human readable format
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '${bytes}B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)}GB';
+  }
+
+  /// Update notification with current stats
+  Future<void> updateNotification() async {
+    if (state == VpnState.connected && _currentServer != null) {
+      final stats = await getConnectionStats();
+      final bytesIn = int.tryParse(stats['bytesIn'] ?? '0') ?? 0;
+      final bytesOut = int.tryParse(stats['bytesOut'] ?? '0') ?? 0;
+      
+      await NotificationService().updateConnectedNotification(
+        title: 'VPN Connected',
+        body: 'Connected to ${_currentServer!.countryLong}',
+        uploadSpeed: _formatBytes(bytesOut),
+        downloadSpeed: _formatBytes(bytesIn),
+        sessionTime: stats['sessionTime'],
+      );
+    }
+  }
+
+  /// Start background service to keep VPN running
+  Future<void> _startBackgroundService() async {
+    try {
+      const platform = MethodChannel('vyntra.vpn.actions');
+      await platform.invokeMethod('startBackgroundService');
+      print('✅ Background service started');
+    } catch (e) {
+      print('❌ Failed to start background service: $e');
+    }
+  }
+
+  /// Stop background service
+  Future<void> _stopBackgroundService() async {
+    try {
+      const platform = MethodChannel('vyntra.vpn.actions');
+      await platform.invokeMethod('stopBackgroundService');
+      print('✅ Background service stopped');
+    } catch (e) {
+      print('❌ Failed to stop background service: $e');
     }
   }
 
@@ -315,6 +426,7 @@ class VpnController extends StateNotifier<VpnState> {
       _engine?.disconnect();
       _set(VpnState.disconnected);
       await _sessionManager.endSession();
+      await _stopBackgroundService(); // Stop background service
       NotificationService().showDisconnected();
       print('🔌 VPN disconnected');
     } catch (e) {

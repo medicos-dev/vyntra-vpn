@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
+import '../../core/services/battery_optimization_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -34,15 +35,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _openBatteryOptimization() async {
     try {
-      await launchUrl(
-        Uri.parse('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS'),
-        mode: LaunchMode.externalApplication,
-      );
+      // Use native method to open battery optimization settings
+      await BatteryOptimizationService.openBatteryOptimizationSettings();
     } catch (e) {
-      await launchUrl(
-        Uri.parse('android.settings.SETTINGS'),
-        mode: LaunchMode.externalApplication,
-      );
+      // Fallback to URL launcher
+      try {
+        await launchUrl(
+          Uri.parse('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS'),
+          mode: LaunchMode.externalApplication,
+        );
+      } catch (e2) {
+        await launchUrl(
+          Uri.parse('android.settings.SETTINGS'),
+          mode: LaunchMode.externalApplication,
+        );
+      }
     }
   }
 

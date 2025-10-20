@@ -664,11 +664,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                           try { await ctrl.disconnect(); } catch (_) {}
                           
                           Navigator.of(context).pop();
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Connection initialised')),
-                            );
-                          }
                           await ctrl.connect(country: s.country);
                           return;
                         }

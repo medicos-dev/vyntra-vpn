@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'features/home/home_screen.dart';
 import 'core/notify/notification_service.dart';
+import 'core/services/battery_optimization_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -10,7 +11,21 @@ void main() async {
   // Initialize notification service early in app lifecycle
   await NotificationService().init();
   
+  // Check if this is first launch and request battery optimization
+  await _checkFirstLaunch();
+  
   runApp(const ProviderScope(child: VyntraApp()));
+}
+
+Future<void> _checkFirstLaunch() async {
+  final prefs = await SharedPreferences.getInstance();
+  final isFirstLaunch = prefs.getBool('is_first_launch') ?? true;
+  
+  if (isFirstLaunch) {
+    // Request battery optimization exemption on first launch
+    await BatteryOptimizationService.requestBatteryOptimizationExemption();
+    await prefs.setBool('is_first_launch', false);
+  }
 }
 
 class VyntraApp extends StatefulWidget {

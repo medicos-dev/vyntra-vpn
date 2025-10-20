@@ -45,8 +45,40 @@ class NotificationService {
       actions: <AndroidNotificationAction>[
         const AndroidNotificationAction('disconnect', 'Disconnect', showsUserInterface: false, cancelNotification: false)
       ],
+      styleInformation: const BigTextStyleInformation(''),
     );
     await _plugin.show(1, title, body, NotificationDetails(android: android), payload: '');
+  }
+
+  Future<void> updateConnectedNotification({
+    required String title,
+    required String body,
+    String? uploadSpeed,
+    String? downloadSpeed,
+    String? sessionTime,
+  }) async {
+    String notificationBody = body;
+    if (uploadSpeed != null && downloadSpeed != null) {
+      notificationBody += '\n📊 ↑ $uploadSpeed ↓ $downloadSpeed';
+    }
+    if (sessionTime != null) {
+      notificationBody += '\n⏱️ $sessionTime';
+    }
+
+    final AndroidNotificationDetails android = AndroidNotificationDetails(
+      _channelId,
+      'VPN Status',
+      channelDescription: 'Shows the current VPN connection status',
+      ongoing: true,
+      onlyAlertOnce: true,
+      importance: Importance.low,
+      priority: Priority.low,
+      actions: <AndroidNotificationAction>[
+        const AndroidNotificationAction('disconnect', 'Disconnect', showsUserInterface: false, cancelNotification: false)
+      ],
+      styleInformation: BigTextStyleInformation(notificationBody),
+    );
+    await _plugin.show(1, title, notificationBody, NotificationDetails(android: android), payload: '');
   }
 
   Future<void> showDisconnected() async {
