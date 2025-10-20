@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/vpn_server.dart';
-import '../../core/models/vpngate_server.dart';
+// import '../../core/models/vpngate_server.dart';
 
 class ServerListScreen extends ConsumerStatefulWidget {
   final List<VpnServer> servers;
