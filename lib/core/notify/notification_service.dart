@@ -16,12 +16,13 @@ class NotificationService {
       onDidReceiveNotificationResponse: (resp) async {
         print('🔔 Notification response: ${resp.actionId}, payload: ${resp.payload}');
         if (resp.payload == 'disconnect' || resp.actionId == 'disconnect') {
+          // Use the platform channel to emit disconnected stage
           const platform = MethodChannel('vyntra.vpn.actions');
           try { 
             await platform.invokeMethod('disconnect');
-            print('✅ Disconnect called from notification');
+            print('✅ Disconnect stage emitted from notification');
           } catch (e) {
-            print('❌ Failed to disconnect from notification: $e');
+            print('❌ Failed to emit disconnect stage from notification: $e');
           }
         }
       }

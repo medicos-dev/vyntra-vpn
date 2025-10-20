@@ -101,13 +101,7 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "disconnect" -> {
                         Log.d("VPNControl", "Disconnect requested from notification")
-                        // Call the OpenVPN Flutter plugin's disconnect method
-                        try {
-                            OpenVPNFlutterPlugin.disconnect()
-                            Log.d("VPNControl", "OpenVPN disconnect called")
-                        } catch (e: Exception) {
-                            Log.e("VPNControl", "Failed to disconnect OpenVPN", e)
-                        }
+                        // Emit disconnected stage - the Flutter side will handle the actual disconnect
                         emitStage("disconnected")
                         result.success(true)
                     }

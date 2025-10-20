@@ -721,7 +721,10 @@ class VpnController extends StateNotifier<VpnState> {
       
       if (stageStr.contains('disconnected')) {
         print('❌ Disconnected');
+        _stopConnectionCheckTimer();
         _set(VpnState.disconnected);
+        _sessionManager.endSession();
+        NotificationService().showDisconnected();
       } else if (stageStr.contains('connecting') || stageStr.contains('wait')) {
         print('🔄 Still connecting...');
         _set(VpnState.connecting);
