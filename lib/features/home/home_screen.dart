@@ -251,7 +251,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   }
 
   Future<void> _retryLoadServers() async {
-    // Force refresh by clearing cache and reloading
+    // Hard refresh: clear any cached servers and timestamps, reset local list, then reload fresh
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('cached_servers');
+      await prefs.remove('servers_cache_timestamp');
+      // Also clear service-level caches to ensure a true hard refresh
+      await prefs.remove('unified_vpn_servers_cache');
+      await prefs.remove('unified_vpn_cache_timestamp');
+      await prefs.remove('vpngate_csv_cache');
+      await prefs.remove('vpngate_cache_timestamp');
+      await prefs.remove('outline_servers_cache');
+      await prefs.remove('outline_cache_timestamp');
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        servers = [];
+      });
+    }
+
     await _loadServers(forceRefresh: true);
   }
 
