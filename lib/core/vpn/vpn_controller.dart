@@ -5,8 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:openvpn_flutter/openvpn_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../network/apis.dart';
 import '../models/vpndart.dart';
+import '../models/vpn_server.dart';
 import '../notify/notification_service.dart';
 import 'session_manager.dart';
 
@@ -111,6 +113,9 @@ class VpnController extends StateNotifier<VpnState> {
       
       // Listen to native stage channel
       _stageChannel.receiveBroadcastStream().listen(_handleNativeStage);
+      
+      // Load saved server info if available
+      _currentServer = await _loadCurrentServer();
       
       _isInitialized = true;
       print('✅ VPN Controller initialized');
@@ -286,8 +291,11 @@ class VpnController extends StateNotifier<VpnState> {
       if (await _isVpnServiceConnected()) {
         print('✅ VPN service is connected! Setting state to connected.');
         _connectionTimeout?.cancel();
+        _stopConnectionCheckTimer();
         _set(VpnState.connected);
         _sessionManager.startSession();
+        // Save server info for future reference
+        await _saveCurrentServer(server);
         // await _startBackgroundService(); // Temporarily disabled to prevent crashes
         NotificationService().showConnected(
           title: 'VPN Connected',
@@ -300,10 +308,12 @@ class VpnController extends StateNotifier<VpnState> {
       if (state == VpnState.connected) {
         print('✅ Connection successful!');
         _connectionTimeout?.cancel();
+        _stopConnectionCheckTimer();
         return true;
       } else if (state == VpnState.failed) {
         print('❌ Connection failed!');
         _connectionTimeout?.cancel();
+        _stopConnectionCheckTimer();
         _engine?.disconnect();
         return false;
       }
@@ -313,9 +323,12 @@ class VpnController extends StateNotifier<VpnState> {
     if (await _isVpnServiceConnected()) {
       print('✅ VPN service connected after timeout period!');
       _connectionTimeout?.cancel();
+      _stopConnectionCheckTimer();
       _set(VpnState.connected);
       _sessionManager.startSession();
-        // await _startBackgroundService(); // Temporarily disabled to prevent crashes
+      // Save server info for future reference
+      await _saveCurrentServer(server);
+      // await _startBackgroundService(); // Temporarily disabled to prevent crashes
       NotificationService().showConnected(
         title: 'VPN Connected',
         body: 'Connected to ${server.countryLong}',
@@ -324,10 +337,10 @@ class VpnController extends StateNotifier<VpnState> {
       return true;
     }
     
-    print('❌ Connection timed out or failed');
-    _connectionTimeout?.cancel();
-    _engine?.disconnect();
-    return false;
+      print('❌ Connection timed out or failed');
+      _connectionTimeout?.cancel();
+      _engine?.disconnect();
+      return false;
   }
 
   /// Check if VPN service is actually connected
@@ -443,22 +456,97 @@ class VpnController extends StateNotifier<VpnState> {
   // Background service methods temporarily disabled to prevent crashes
   // TODO: Re-enable after fixing crash issues
 
+  /// Save current server information to SharedPreferences
+  Future<void> _saveCurrentServer(VpnGateServer server) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('current_server_country', server.countryLong);
+      await prefs.setString('current_server_host', server.hostName);
+      await prefs.setString('current_server_ip', server.ip);
+      print('💾 Saved server info: ${server.countryLong}');
+    } catch (e) {
+      print('❌ Failed to save server info: $e');
+    }
+  }
+
+  /// Load current server information from SharedPreferences
+  Future<VpnGateServer?> _loadCurrentServer() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final country = prefs.getString('current_server_country');
+      final host = prefs.getString('current_server_host');
+      final ip = prefs.getString('current_server_ip');
+      
+      if (country != null && host != null && ip != null) {
+        final server = VpnGateServer(
+          hostName: host,
+          ip: ip,
+          score: 0,
+          ping: 0,
+          speed: 0,
+          countryLong: country,
+          countryShort: country,
+          numVpnSessions: 0,
+          uptime: 0,
+          totalUsers: 0,
+          totalTraffic: 0,
+          logType: '',
+          operator: '',
+          message: '',
+          openvpnConfigDataBase64: '',
+        );
+        print('📂 Loaded server info: $country');
+        return server;
+      }
+    } catch (e) {
+      print('❌ Failed to load server info: $e');
+    }
+    return null;
+  }
+
+  /// Clear saved server information from SharedPreferences
+  Future<void> _clearSavedServerInfo() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('current_server_country');
+      await prefs.remove('current_server_host');
+      await prefs.remove('current_server_ip');
+      print('🗑️ Cleared saved server info');
+    } catch (e) {
+      print('❌ Failed to clear server info: $e');
+    }
+  }
+
   /// Refresh VPN stage and check actual connection status
   Future<void> refreshStage() async {
-    // Check if we're actually connected but state shows otherwise
-    if (state == VpnState.connecting || state == VpnState.disconnected) {
-      final isConnected = await _isVpnServiceConnected();
-      if (isConnected && state != VpnState.connected) {
-        print('🔄 Refreshing stage - VPN is actually connected!');
-        _set(VpnState.connected);
-        _sessionManager.startSession();
-        // await _startBackgroundService(); // Temporarily disabled to prevent crashes
-        NotificationService().showConnected(
-          title: 'VPN Connected',
-          body: 'Connected to ${_currentServer?.countryLong ?? 'Unknown'}',
-        );
-        return;
+    print('🔄 Refreshing VPN stage...');
+    
+    // Always check if we're actually connected, regardless of current state
+    final isConnected = await _isVpnServiceConnected();
+    print('🔍 Actual VPN status: $isConnected, Current state: $state');
+    
+    if (isConnected && state != VpnState.connected) {
+      print('🔄 VPN is actually connected but state shows otherwise - correcting!');
+      
+      // Load server info if not available
+      if (_currentServer == null) {
+        _currentServer = await _loadCurrentServer();
       }
+      
+      _set(VpnState.connected);
+      // Start session when correcting state to connected
+      _sessionManager.startSession();
+      NotificationService().showConnected(
+        title: 'VPN Connected',
+        body: 'Connected to ${_currentServer?.countryLong ?? 'Unknown'}',
+      );
+      return;
+    } else if (!isConnected && state == VpnState.connected) {
+      print('🔄 VPN is actually disconnected but state shows connected - correcting!');
+      _set(VpnState.disconnected);
+      await _sessionManager.endSession();
+      NotificationService().showDisconnected();
+      return;
     }
     
     // Emit current state to listeners
@@ -480,6 +568,9 @@ class VpnController extends StateNotifier<VpnState> {
       
       _set(VpnState.disconnected);
       await _sessionManager.endSession();
+      // Clear saved server info
+      _currentServer = null;
+      await _clearSavedServerInfo();
       // await _stopBackgroundService(); // Temporarily disabled to prevent crashes
       NotificationService().showDisconnected();
       print('🔌 VPN disconnected successfully');
@@ -782,6 +873,51 @@ class VpnController extends StateNotifier<VpnState> {
     _stopConnectionCheckTimer();
     _engine?.disconnect();
     super.dispose();
+  }
+
+  /// Connect to a specific server
+  Future<bool> connectToServer(VpnServer server) async {
+    try {
+      _set(VpnState.connecting);
+      _lastError = '';
+
+      // Convert VpnServer to VpnGateServer for compatibility
+      final vpnGateServer = VpnGateServer(
+        hostName: server.hostname,
+        ip: server.ip,
+        score: server.score ?? 0,
+        ping: server.pingMs ?? 9999,
+        speed: server.speedBps ?? 0,
+        countryLong: server.country,
+        countryShort: server.country,
+        numVpnSessions: 0,
+        uptime: 0,
+        totalUsers: 0,
+        totalTraffic: 0,
+        logType: '',
+        operator: '',
+        message: '',
+        openvpnConfigDataBase64: server.ovpnBase64 ?? '',
+      );
+
+      print('🎯 Connecting to specific server: ${server.country} (${server.hostname})');
+      _currentServer = vpnGateServer;
+
+      // Attempt connection to the specific server
+      final success = await _attemptConnection(vpnGateServer);
+      if (success) {
+        print('✅ Connected successfully to specific server: ${server.country}');
+        return true;
+      } else {
+        print('❌ Failed to connect to specific server: ${server.country}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Specific server connection error: $e');
+      _lastError = 'Connection failed: $e';
+      _set(VpnState.failed);
+      return false;
+    }
   }
 }
 

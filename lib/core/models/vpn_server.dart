@@ -223,12 +223,24 @@ class VpnServer {
       final decodedBytes = base64.decode(cleanBase64);
       
       // Decode to UTF-8 string
-      final configText = utf8.decode(decodedBytes);
+      String configText = utf8.decode(decodedBytes);
       
       // Validate that it's actually an OpenVPN config
       if (!configText.contains('client') || !configText.contains('remote')) {
         print('⚠️ Decoded config for $hostname is not a valid OpenVPN config');
         return null;
+      }
+      
+      // Inject mandatory routing directive if missing
+      if (!configText.toLowerCase().contains('redirect-gateway def1')) {
+        print('🔧 Injecting redirect-gateway def1 for $hostname');
+        configText = 'redirect-gateway def1\n$configText';
+      }
+      
+      // Inject DNS directive if missing to prevent DNS leaks
+      if (!configText.toLowerCase().contains('setenv dns')) {
+        print('🔧 Injecting DNS directive for $hostname');
+        configText = 'setenv DNS "8.8.8.8"\n$configText';
       }
       
       return configText;

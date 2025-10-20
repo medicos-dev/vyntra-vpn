@@ -1,5 +1,6 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class NotificationService {
   static final NotificationService _i = NotificationService._();
@@ -10,6 +11,9 @@ class NotificationService {
   static const String _channelId = 'vyntra_vpn_status';
 
   Future<void> init() async {
+    // Request notification permission for Android 13+
+    await _requestNotificationPermission();
+    
     const AndroidInitializationSettings android = AndroidInitializationSettings('ic_notification');
     const InitializationSettings init = InitializationSettings(android: android);
     await _plugin.initialize(init,
@@ -40,6 +44,18 @@ class NotificationService {
     await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(channel);
   }
 
+  Future<void> _requestNotificationPermission() async {
+    try {
+      final status = await Permission.notification.status;
+      if (status.isDenied) {
+        await Permission.notification.request();
+        print('🔔 Notification permission requested');
+      }
+    } catch (e) {
+      print('❌ Failed to request notification permission: $e');
+    }
+  }
+
   Future<void> showConnected({required String title, required String body}) async {
     try {
       final AndroidNotificationDetails android = AndroidNotificationDetails(
@@ -47,16 +63,18 @@ class NotificationService {
         'VPN Status',
         channelDescription: 'Shows the current VPN connection status',
         ongoing: true,
-        onlyAlertOnce: true,
-        importance: Importance.low,
-        priority: Priority.low,
+        onlyAlertOnce: false, // Allow alerts for each connection
+        importance: Importance.high, // Make it more visible
+        priority: Priority.high,
         actions: <AndroidNotificationAction>[
           const AndroidNotificationAction('disconnect', 'Disconnect', showsUserInterface: false, cancelNotification: false)
         ],
         styleInformation: const BigTextStyleInformation(''),
+        showWhen: true,
+        when: DateTime.now().millisecondsSinceEpoch,
       );
       await _plugin.show(1, title, body, NotificationDetails(android: android), payload: '');
-      print('✅ Notification shown successfully');
+      print('✅ Notification shown successfully: $title - $body');
     } catch (e) {
       print('❌ Failed to show notification: $e');
     }

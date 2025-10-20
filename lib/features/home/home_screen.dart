@@ -77,12 +77,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
       final ctrl = ref.read(vpnControllerProvider);
-      // Ask native side to refresh and emit current stage
+      // Immediately refresh stage without delay
       ctrl.refreshStage();
+      print('🔄 App resumed - refreshing VPN state immediately');
     }
   }
 
-  Future<void> _loadServers() async {
+  Future<void> _loadServers({bool forceRefresh = false}) async {
     if (_loadingServers) return;
     
     setState(() {
@@ -90,6 +91,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
+      // Check cache first unless force refresh is requested
+      if (!forceRefresh && servers.isNotEmpty) {
+        print('📱 Using cached servers (${servers.length} servers)');
+        setState(() {
+          _loadingServers = false;
+        });
+        return;
+      }
+      
       // Use original APIs service
       final List<AllServers> fetched = await APIs.getVPNServers();
       if (mounted) {
@@ -117,7 +127,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           )).toList();
           _loadingServers = false;
         });
-        print('🏠 Home screen loaded ${servers.length} servers (APIs)');
+        print('🏠 Home screen loaded ${servers.length} servers (APIs) - Fresh data');
         if (servers.isNotEmpty) {
           final bestServer = fetched.first;
           print('🚀 Best server: ${bestServer.HostName} (${bestServer.CountryLong}) - Score: ${bestServer.Score}, Ping: ${bestServer.Ping}ms, Speed: ${((bestServer.Speed ?? 0) / 1000000).toStringAsFixed(1)}Mbps');
@@ -134,44 +144,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   }
 
   Future<void> _retryLoadServers() async {
-    setState(() {
-      servers = [];
-      _loadingServers = true;
-    });
-    
-    try {
-      final List<AllServers> fetched = await APIs.getVPNServers();
-      if (mounted) {
-        setState(() {
-          // Sort by intelligent score (descending) then by ping (ascending)
-          fetched.sort((a, b) {
-            final scoreComparison = b.intelligentScore.compareTo(a.intelligentScore);
-            if (scoreComparison != 0) return scoreComparison;
-            return (a.Ping ?? ServerConstants.maxPing).compareTo(b.Ping ?? ServerConstants.maxPing);
-          });
-          servers = fetched.map((s) => VpnServer(
-            id: s.HostName ?? '',
-            name: s.HostName ?? '',
-            hostname: s.HostName ?? '',
-            ip: s.IP ?? '',
-            country: s.CountryLong ?? '',
-            protocol: VpnProtocol.openvpn,
-            port: 0,
-            speedBps: s.Speed ?? 0,
-            pingMs: s.Ping ?? ServerConstants.maxPing,
-            ovpnBase64: s.OpenVPN_ConfigData_Base64 ?? '',
-          )).toList();
-          _loadingServers = false;
-        });
-      }
-    } catch (e) {
-      print('Error retrying server load (APIs): $e');
-      if (mounted) {
-        setState(() {
-          _loadingServers = false;
-        });
-      }
-    }
+    // Force refresh by clearing cache and reloading
+    await _loadServers(forceRefresh: true);
   }
 
   Future<void> _connectBest() async {
@@ -236,7 +210,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         statusColor = const Color(0xFF00C851);
         statusIcon = Icons.security;
         statusText = 'Connected & Secure';
-        statusSubtext = 'Your connection is protected';
+        // Get server country from VPN controller
+        final ctrl = ref.read(vpnControllerProvider);
+        final serverCountry = ctrl.currentServer?.countryLong ?? 'Unknown';
+        statusSubtext = 'Connected to $serverCountry';
         break;
       case VpnState.connecting:
         statusColor = const Color(0xFFFF8800);
@@ -385,7 +362,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
               },
             ),
           ],
-          if (error != null) ...[
+          if (error != null && error.isNotEmpty && state == VpnState.failed) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -664,7 +641,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                           try { await ctrl.disconnect(); } catch (_) {}
                           
                           Navigator.of(context).pop();
-                          await ctrl.connect(country: s.country);
+                          await ctrl.connectToServer(s);
                           return;
                         }
 

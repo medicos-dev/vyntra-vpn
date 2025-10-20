@@ -210,20 +210,36 @@ class MainActivity : FlutterActivity() {
 
     private fun isVpnConnected(): Boolean {
         return try {
-            // Check if VPN service is running
+            Log.d("MainActivity", "Checking VPN connection status...")
+            
+            // Method 1: Check if VPN service is prepared (more reliable)
             val vpnService = android.net.VpnService.prepare(this)
             if (vpnService != null) {
-                // VPN service is not prepared, so not connected
-                false
-            } else {
-                // Check if there's an active VPN connection
-                val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-                val activeNetwork = connectivityManager.activeNetwork
-                val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
-                
-                // Check if the active network has VPN transport
-                networkCapabilities?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
+                Log.d("MainActivity", "VPN service not prepared - not connected")
+                return false
             }
+            
+            // Method 2: Check active network capabilities
+            val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            val activeNetwork = connectivityManager.activeNetwork
+            val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
+            
+            val hasVpnTransport = networkCapabilities?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
+            Log.d("MainActivity", "VPN transport detected: $hasVpnTransport")
+            
+            // Method 3: Check if there are any VPN interfaces
+            val hasVpnInterface = try {
+                val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
+                interfaces.asSequence().any { it.name.startsWith("tun") || it.name.startsWith("tap") }
+            } catch (e: Exception) {
+                false
+            }
+            Log.d("MainActivity", "VPN interface detected: $hasVpnInterface")
+            
+            val isConnected = hasVpnTransport || hasVpnInterface
+            Log.d("MainActivity", "Final VPN status: $isConnected")
+            return isConnected
+            
         } catch (e: Exception) {
             Log.e("MainActivity", "Error checking VPN status", e)
             false
