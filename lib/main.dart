@@ -3,20 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'features/home/home_screen.dart';
 import 'features/splash/splash_screen.dart';
-import 'core/notify/notification_service.dart';
+// NotificationService is initialized later from Home; no import needed here
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize notification service (no permission request here)
-  await NotificationService().init();
-
-  // Preload theme synchronously before runApp to avoid first-tap glitch
-  final prefs = await SharedPreferences.getInstance();
-  final themeIndex = prefs.getInt('theme_mode') ?? 0;
-  final initialMode = ThemeMode.values[themeIndex];
-  
-  runApp(ProviderScope(child: VyntraApp(initialMode: initialMode)));
+  // Start app immediately for zero-delay splash; load preferences after
+  runApp(const ProviderScope(child: VyntraApp(initialMode: ThemeMode.system)));
 }
 
 // Removed first-launch battery request; handled on Home entry
@@ -30,6 +22,21 @@ class VyntraApp extends StatefulWidget {
 
 class _VyntraAppState extends State<VyntraApp> {
   late ThemeMode _mode = widget.initialMode;
+
+  @override
+  void initState() {
+    super.initState();
+    // Load theme and lightweight services after first frame to avoid startup delay
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      final themeIndex = prefs.getInt('theme_mode');
+      if (themeIndex != null) {
+        setState(() {
+          _mode = ThemeMode.values[themeIndex];
+        });
+      }
+    });
+  }
 
   void _setMode(ThemeMode mode) async {
     setState(() {

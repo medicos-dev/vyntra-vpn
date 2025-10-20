@@ -78,16 +78,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       // Load servers from cache first, then refresh if needed
       await _loadServersFromCache();
 
-      // Ask notification permission on first entry to Home (Android 13+)
+      // Ask permissions AFTER landing on Home (ensures no conflicts)
       try {
-        await NotificationService().init(); // ensures plugin ready (no prompt inside)
-        // Explicitly request permission now
-        // ignore: invalid_use_of_visible_for_testing_member
-        // Call the internal method via public wrapper
+        // Notification permission
+        await NotificationService().requestPermissionFromUI();
       } catch (_) {}
 
-      // Request battery optimization exemption if not granted
       try {
+        // Battery optimization exemption
         final ignored = await BatteryOptimizationService.isBatteryOptimizationIgnored();
         if (!ignored) {
           await BatteryOptimizationService.requestBatteryOptimizationExemption();

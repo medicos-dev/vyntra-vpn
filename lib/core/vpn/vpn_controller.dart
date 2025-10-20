@@ -187,47 +187,25 @@ class VpnController extends StateNotifier<VpnState> {
         return false;
       }
       
-      // Sort by Speed (descending) as primary metric for "Connect Fastest",
-      // then by lower Ping (ascending), then by Score (descending) as tiebreakers
-      filteredServers.sort((a, b) {
-        final speedComparison = (b.Speed ?? 0).compareTo(a.Speed ?? 0);
-        if (speedComparison != 0) return speedComparison;
-        final pingComparison = (a.Ping ?? 9999).compareTo(b.Ping ?? 9999);
-        if (pingComparison != 0) return pingComparison;
-        return (b.Score ?? 0).compareTo(a.Score ?? 0);
-      });
+      // Connect to the first extracted server (as provided by the API order)
+      final firstServer = filteredServers.first;
+      print('🎯 Attempting first server from feed: ${firstServer.HostName} (Speed: ${firstServer.Speed}, Ping: ${firstServer.Ping}ms)');
 
-      print('📊 Top 5 servers by speed:');
-      for (int i = 0; i < filteredServers.length && i < 5; i++) {
-        final server = filteredServers[i];
-        print('  ${i + 1}. ${server.HostName} - Speed: ${server.Speed}bps, Ping: ${server.Ping}ms, Score: ${server.Score}, Country: ${server.CountryLong}');
-      }
+      _currentServer = _convertAllServersToVpnGateServer(firstServer);
+      // Save server info immediately when attempting connection
+      await _saveCurrentServer(_currentServer!);
 
-      // Try connecting to the top 3 fastest servers directly
-      final topServers = filteredServers.take(3).toList();
-      for (int i = 0; i < topServers.length; i++) {
-        final server = topServers[i];
-        _currentServer = _convertAllServersToVpnGateServer(server);
-        // Save server info immediately when attempting connection
-        await _saveCurrentServer(_currentServer!);
-        
-        print('🎯 Attempting server ${i + 1}: ${server.HostName} (Score: ${server.Score}, Ping: ${server.Ping}ms)');
-
-        try {
-          final success = await _attemptConnection(_currentServer!);
-          if (success) {
-            print('✅ Connected successfully to ${server.HostName}');
-            return true;
-          }
-        } catch (e) {
-          print('❌ Failed to connect to ${server.HostName}: $e');
-          if (i == topServers.length - 1) {
-            _lastError = 'All connection attempts failed. Last error: $e';
-          }
+      try {
+        final success = await _attemptConnection(_currentServer!);
+        if (success) {
+          print('✅ Connected successfully to ${firstServer.HostName}');
+          return true;
         }
+      } catch (e) {
+        print('❌ Failed to connect to ${firstServer.HostName}: $e');
+        _lastError = 'Connection failed: $e';
       }
 
-      _lastError = 'Unable to connect to any available server. Please try again.';
       _set(VpnState.failed);
       return false;
     } catch (e) {
