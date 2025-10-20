@@ -14,9 +14,15 @@ class NotificationService {
     const InitializationSettings init = InitializationSettings(android: android);
     await _plugin.initialize(init,
       onDidReceiveNotificationResponse: (resp) async {
+        print('🔔 Notification response: ${resp.actionId}, payload: ${resp.payload}');
         if (resp.payload == 'disconnect' || resp.actionId == 'disconnect') {
           const platform = MethodChannel('vyntra.vpn.actions');
-          try { await platform.invokeMethod('disconnect'); } catch (_) {}
+          try { 
+            await platform.invokeMethod('disconnect');
+            print('✅ Disconnect called from notification');
+          } catch (e) {
+            print('❌ Failed to disconnect from notification: $e');
+          }
         }
       }
     );
@@ -34,20 +40,25 @@ class NotificationService {
   }
 
   Future<void> showConnected({required String title, required String body}) async {
-    final AndroidNotificationDetails android = AndroidNotificationDetails(
-      _channelId,
-      'VPN Status',
-      channelDescription: 'Shows the current VPN connection status',
-      ongoing: true,
-      onlyAlertOnce: true,
-      importance: Importance.low,
-      priority: Priority.low,
-      actions: <AndroidNotificationAction>[
-        const AndroidNotificationAction('disconnect', 'Disconnect', showsUserInterface: false, cancelNotification: false)
-      ],
-      styleInformation: const BigTextStyleInformation(''),
-    );
-    await _plugin.show(1, title, body, NotificationDetails(android: android), payload: '');
+    try {
+      final AndroidNotificationDetails android = AndroidNotificationDetails(
+        _channelId,
+        'VPN Status',
+        channelDescription: 'Shows the current VPN connection status',
+        ongoing: true,
+        onlyAlertOnce: true,
+        importance: Importance.low,
+        priority: Priority.low,
+        actions: <AndroidNotificationAction>[
+          const AndroidNotificationAction('disconnect', 'Disconnect', showsUserInterface: false, cancelNotification: false)
+        ],
+        styleInformation: const BigTextStyleInformation(''),
+      );
+      await _plugin.show(1, title, body, NotificationDetails(android: android), payload: '');
+      print('✅ Notification shown successfully');
+    } catch (e) {
+      print('❌ Failed to show notification: $e');
+    }
   }
 
   Future<void> updateConnectedNotification({

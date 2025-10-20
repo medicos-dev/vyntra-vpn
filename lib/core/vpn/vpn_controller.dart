@@ -288,11 +288,12 @@ class VpnController extends StateNotifier<VpnState> {
         _connectionTimeout?.cancel();
         _set(VpnState.connected);
         _sessionManager.startSession();
-        await _startBackgroundService(); // Start background service
+        // await _startBackgroundService(); // Temporarily disabled to prevent crashes
         NotificationService().showConnected(
           title: 'VPN Connected',
           body: 'Connected to ${server.countryLong}',
         );
+        print('✅ Notification should be shown');
         return true;
       }
       
@@ -314,11 +315,12 @@ class VpnController extends StateNotifier<VpnState> {
       _connectionTimeout?.cancel();
       _set(VpnState.connected);
       _sessionManager.startSession();
-      await _startBackgroundService(); // Start background service
+        // await _startBackgroundService(); // Temporarily disabled to prevent crashes
       NotificationService().showConnected(
         title: 'VPN Connected',
         body: 'Connected to ${server.countryLong}',
       );
+      print('✅ Notification should be shown (final check)');
       return true;
     }
     
@@ -419,7 +421,7 @@ class VpnController extends StateNotifier<VpnState> {
           _connectionTimeout?.cancel();
           _set(VpnState.connected);
           _sessionManager.startSession();
-          await _startBackgroundService();
+          // await _startBackgroundService(); // Temporarily disabled to prevent crashes
           NotificationService().showConnected(
             title: 'VPN Connected',
             body: 'Connected to ${_currentServer?.countryLong ?? 'Unknown'}',
@@ -438,27 +440,8 @@ class VpnController extends StateNotifier<VpnState> {
     _connectionCheckTimer = null;
   }
 
-  /// Start background service to keep VPN running
-  Future<void> _startBackgroundService() async {
-    try {
-      const platform = MethodChannel('vyntra.vpn.actions');
-      await platform.invokeMethod('startBackgroundService');
-      print('✅ Background service started');
-    } catch (e) {
-      print('❌ Failed to start background service: $e');
-    }
-  }
-
-  /// Stop background service
-  Future<void> _stopBackgroundService() async {
-    try {
-      const platform = MethodChannel('vyntra.vpn.actions');
-      await platform.invokeMethod('stopBackgroundService');
-      print('✅ Background service stopped');
-    } catch (e) {
-      print('❌ Failed to stop background service: $e');
-    }
-  }
+  // Background service methods temporarily disabled to prevent crashes
+  // TODO: Re-enable after fixing crash issues
 
   /// Refresh VPN stage and check actual connection status
   Future<void> refreshStage() async {
@@ -469,7 +452,7 @@ class VpnController extends StateNotifier<VpnState> {
         print('🔄 Refreshing stage - VPN is actually connected!');
         _set(VpnState.connected);
         _sessionManager.startSession();
-        await _startBackgroundService();
+        // await _startBackgroundService(); // Temporarily disabled to prevent crashes
         NotificationService().showConnected(
           title: 'VPN Connected',
           body: 'Connected to ${_currentServer?.countryLong ?? 'Unknown'}',
@@ -485,16 +468,27 @@ class VpnController extends StateNotifier<VpnState> {
   /// Disconnect from VPN
   Future<void> disconnect() async {
     try {
+      print('🔌 Starting VPN disconnect...');
       _connectionTimeout?.cancel();
       _stopConnectionCheckTimer();
-      _engine?.disconnect();
+      
+      // Disconnect from OpenVPN
+      if (_engine != null) {
+        _engine!.disconnect();
+        print('✅ OpenVPN disconnect called');
+      }
+      
       _set(VpnState.disconnected);
       await _sessionManager.endSession();
-      await _stopBackgroundService(); // Stop background service
+      // await _stopBackgroundService(); // Temporarily disabled to prevent crashes
       NotificationService().showDisconnected();
-      print('🔌 VPN disconnected');
+      print('🔌 VPN disconnected successfully');
     } catch (e) {
       print('❌ Disconnect error: $e');
+      // Even if there's an error, set state to disconnected
+      _set(VpnState.disconnected);
+      await _sessionManager.endSession();
+      NotificationService().showDisconnected();
     }
   }
 

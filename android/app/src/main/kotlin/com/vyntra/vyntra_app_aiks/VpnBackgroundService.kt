@@ -85,7 +85,7 @@ class VpnBackgroundService : Service() {
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("Vyntra VPN")
             .setContentText("VPN connection active")
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(android.R.drawable.ic_dialog_info) // Use default Android icon
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
