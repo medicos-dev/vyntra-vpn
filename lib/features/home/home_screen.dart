@@ -14,7 +14,12 @@ import '../../core/constants/server_constants.dart';
 // Removed unused providers - using original APIs service
 final vpnControllerProvider = Provider((ref) {
   final controller = VpnController();
-  controller.init(); // Initialize asynchronously
+  // Initialize synchronously to ensure server info is loaded
+  controller.init().then((_) {
+    print('✅ VPN Controller initialized with server: ${controller.currentServer?.countryLong ?? 'null'}');
+  }).catchError((e) {
+    print('❌ VPN Controller initialization failed: $e');
+  });
   return controller;
 });
 
@@ -80,8 +85,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
       final ctrl = ref.read(vpnControllerProvider);
-      // Immediately refresh stage without delay for faster performance
-      ctrl.refreshStage();
+      // Force load server info if not available
+      if (ctrl.currentServer == null) {
+        ctrl.forceLoadServerInfo().then((_) {
+          // Immediately refresh stage after loading server info
+          ctrl.refreshStage();
+        });
+      } else {
+        // Immediately refresh stage without delay for faster performance
+        ctrl.refreshStage();
+      }
       print('🔄 App resumed - refreshing VPN state immediately for fast performance');
     }
   }
@@ -292,6 +305,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         statusText = 'Connected & Secure';
         // Get server country from VPN controller
         final ctrl = ref.read(vpnControllerProvider);
+        print('🏠 Home screen - currentServer: ${ctrl.currentServer?.countryLong ?? 'null'}');
         final serverCountry = ctrl.currentServer?.countryLong ?? 'Unknown';
         statusSubtext = 'Connected to $serverCountry';
         break;

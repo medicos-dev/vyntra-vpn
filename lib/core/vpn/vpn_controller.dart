@@ -196,6 +196,8 @@ class VpnController extends StateNotifier<VpnState> {
       for (int i = 0; i < topServers.length; i++) {
         final server = topServers[i];
         _currentServer = _convertAllServersToVpnGateServer(server);
+        // Save server info immediately when attempting connection
+        await _saveCurrentServer(_currentServer!);
         
         print('🎯 Attempting server ${i + 1}: ${server.HostName} (Score: ${server.Score}, Ping: ${server.Ping}ms)');
 
@@ -431,23 +433,35 @@ class VpnController extends StateNotifier<VpnState> {
 
   /// Update notification with current stats
   Future<void> updateNotification() async {
-    if (state == VpnState.connected && _currentServer != null) {
-      final stats = await getConnectionStats();
-      final bytesIn = int.tryParse(stats['bytesIn'] ?? '0') ?? 0;
-      final bytesOut = int.tryParse(stats['bytesOut'] ?? '0') ?? 0;
+    print('🔔 updateNotification called - state: $state, currentServer: ${_currentServer?.countryLong ?? 'null'}');
+    if (state == VpnState.connected) {
+      // Load server info if not available
+      if (_currentServer == null) {
+        print('🔔 Loading server info for notification...');
+        _currentServer = await _loadCurrentServer();
+        print('🔔 Server info loaded: ${_currentServer?.countryLong ?? 'null'}');
+      }
       
-      // Format speeds in kbit/s/mbit/s format like in screenshot
-      final uploadSpeed = _formatSpeed(bytesOut);
-      final downloadSpeed = _formatSpeed(bytesIn);
-      final sessionTime = stats['sessionTime'];
-      
-      await NotificationService().showConnected(
-        title: 'VPN Connected',
-        body: 'Connected to ${_currentServer!.countryLong}',
-        uploadSpeed: uploadSpeed,
-        downloadSpeed: downloadSpeed,
-        sessionTime: sessionTime,
-      );
+      if (_currentServer != null) {
+        final stats = await getConnectionStats();
+        final bytesIn = int.tryParse(stats['bytesIn'] ?? '0') ?? 0;
+        final bytesOut = int.tryParse(stats['bytesOut'] ?? '0') ?? 0;
+        
+        // Format speeds in kbit/s/mbit/s format like in screenshot
+        final uploadSpeed = _formatSpeed(bytesOut);
+        final downloadSpeed = _formatSpeed(bytesIn);
+        final sessionTime = stats['sessionTime'];
+        
+        await NotificationService().showConnected(
+          title: 'VPN Connected',
+          body: 'Connected to ${_currentServer!.countryLong}',
+          uploadSpeed: uploadSpeed,
+          downloadSpeed: downloadSpeed,
+          sessionTime: sessionTime,
+        );
+      } else {
+        print('🔔 No server info available for notification');
+      }
     }
   }
 
@@ -518,6 +532,27 @@ class VpnController extends StateNotifier<VpnState> {
     }
   }
 
+  /// Force load server info from cache
+  Future<void> forceLoadServerInfo() async {
+    print('🔄 Force loading server info from cache...');
+    _currentServer = await _loadCurrentServer();
+    print('🔄 Server info loaded: ${_currentServer?.countryLong ?? 'null'}');
+  }
+
+  /// Debug method to check what's in SharedPreferences
+  Future<void> debugServerInfo() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final country = prefs.getString('current_server_country');
+      final host = prefs.getString('current_server_host');
+      final ip = prefs.getString('current_server_ip');
+      print('🐛 DEBUG - Saved server info: country=$country, host=$host, ip=$ip');
+      print('🐛 DEBUG - Current server: ${_currentServer?.countryLong ?? 'null'}');
+    } catch (e) {
+      print('🐛 DEBUG - Error checking server info: $e');
+    }
+  }
+
   /// Load current server information from SharedPreferences
   Future<VpnGateServer?> _loadCurrentServer() async {
     try {
@@ -550,6 +585,8 @@ class VpnController extends StateNotifier<VpnState> {
         );
         print('📂 Loaded detailed server info: $country (Score: ${score ?? 0}, Ping: ${ping ?? 0}ms)');
         return server;
+      } else {
+        print('⚠️ Server info missing - country: $country, host: $host, ip: $ip');
       }
     } catch (e) {
       print('❌ Failed to load server info: $e');
@@ -595,10 +632,12 @@ class VpnController extends StateNotifier<VpnState> {
       _sessionManager.startSession();
       // Start notification update timer
       _startNotificationUpdateTimer();
+      print('🔔 About to show notification - currentServer: ${_currentServer?.countryLong ?? 'null'}');
       NotificationService().showConnected(
         title: 'VPN Connected',
         body: 'Connected to ${_currentServer?.countryLong ?? 'Unknown'}',
       );
+      print('🔔 Notification shown with server: ${_currentServer?.countryLong ?? 'Unknown'}');
       return;
     } else if (!isConnected && state == VpnState.connected) {
       print('🔄 VPN is actually disconnected but state shows connected - correcting!');
@@ -978,6 +1017,8 @@ class VpnController extends StateNotifier<VpnState> {
 
       print('🎯 Connecting to specific server: ${server.country} (${server.hostname})');
       _currentServer = vpnGateServer;
+      // Save server info immediately when attempting connection
+      await _saveCurrentServer(_currentServer!);
 
       // Attempt connection to the specific server
       final success = await _attemptConnection(vpnGateServer);
