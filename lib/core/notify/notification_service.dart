@@ -65,14 +65,82 @@ class NotificationService {
     }
   }
 
+  /// Show a warning notification
+  Future<void> showWarning({required String title, required String body}) async {
+    try {
+      final AndroidNotificationDetails android = AndroidNotificationDetails(
+        _channelId,
+        'VPN Status',
+        channelDescription: 'Shows VPN session warnings',
+        ongoing: false, // Not ongoing for warnings
+        onlyAlertOnce: true,
+        importance: Importance.high,
+        priority: Priority.high,
+        styleInformation: BigTextStyleInformation(body),
+        showWhen: true,
+        when: DateTime.now().millisecondsSinceEpoch,
+      );
+      await _plugin.show(2, title, body, NotificationDetails(android: android), payload: '');
+      print('⚠️ Warning notification shown: $title - $body');
+    } catch (e) {
+      print('❌ Failed to show warning notification: $e');
+    }
+  }
+
+  /// Show session expired notification
+  Future<void> showSessionExpired() async {
+    try {
+      final AndroidNotificationDetails android = AndroidNotificationDetails(
+        _channelId,
+        'VPN Status',
+        channelDescription: 'Shows VPN session status',
+        ongoing: false, // Not ongoing for expired sessions
+        onlyAlertOnce: true,
+        importance: Importance.high,
+        priority: Priority.high,
+        styleInformation: BigTextStyleInformation('Your VPN session has ended after 1 hour. You can reconnect anytime.'),
+        showWhen: true,
+        when: DateTime.now().millisecondsSinceEpoch,
+      );
+      await _plugin.show(3, 'Session Expired', 'Your VPN session has ended after 1 hour', NotificationDetails(android: android), payload: '');
+      print('⏰ Session expired notification shown');
+    } catch (e) {
+      print('❌ Failed to show session expired notification: $e');
+    }
+  }
+
+  /// Show a static connected notification (no speeds/timer updates)
+  Future<void> showStaticConnected({required String title, required String body}) async {
+    try {
+      final AndroidNotificationDetails android = AndroidNotificationDetails(
+        _channelId,
+        'VPN Status',
+        channelDescription: 'Shows the current VPN connection status',
+        ongoing: true,
+        onlyAlertOnce: true, // Only alert once for static notification
+        importance: Importance.max,
+        priority: Priority.max,
+        actions: <AndroidNotificationAction>[
+          const AndroidNotificationAction('disconnect', 'Disconnect', showsUserInterface: false, cancelNotification: false)
+        ],
+        styleInformation: BigTextStyleInformation(body),
+        showWhen: true,
+        when: DateTime.now().millisecondsSinceEpoch,
+      );
+      await _plugin.show(1, title, body, NotificationDetails(android: android), payload: '');
+      print('✅ Static notification shown successfully: $title - $body');
+    } catch (e) {
+      print('❌ Failed to show static notification: $e');
+    }
+  }
+
   Future<void> showConnected({required String title, required String body, String? uploadSpeed, String? downloadSpeed, String? sessionTime}) async {
     try {
-      // Create enhanced body with traffic stats and session time
+      // Create static body with just server info (no speeds/timer to prevent spamming)
       String enhancedBody = body;
-      if (uploadSpeed != null && downloadSpeed != null) {
+      // Only add speeds and timer if explicitly requested (for manual updates)
+      if (uploadSpeed != null && downloadSpeed != null && sessionTime != null) {
         enhancedBody += '\n📊 ↑ $uploadSpeed ↓ $downloadSpeed';
-      }
-      if (sessionTime != null) {
         enhancedBody += '\n⏱️ $sessionTime';
       }
       

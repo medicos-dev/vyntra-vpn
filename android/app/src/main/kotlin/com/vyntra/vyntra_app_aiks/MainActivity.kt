@@ -1,5 +1,7 @@
 package com.vyntra.vyntra_app_aiks
 
+import android.app.NotificationManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -26,6 +28,34 @@ class MainActivity : FlutterActivity() {
 
     @Volatile
     private var lastStage: String = "disconnected"
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // Disable OpenVPN's built-in notification channel
+        disableOpenVpnNotification()
+    }
+
+    private fun disableOpenVpnNotification() {
+        try {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            
+            // Try to disable OpenVPN's notification channel
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channelId = "openvpn_channel" // Common OpenVPN channel ID
+                val channel = notificationManager.getNotificationChannel(channelId)
+                if (channel != null) {
+                    channel.setShowBadge(false)
+                    channel.enableLights(false)
+                    channel.enableVibration(false)
+                    channel.setSound(null, null)
+                    Log.d("MainActivity", "Disabled OpenVPN notification channel")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to disable OpenVPN notification", e)
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

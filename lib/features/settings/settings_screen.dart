@@ -141,7 +141,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Icon(
               Icons.info_outline_rounded,
               size: 32,
-              color: Theme.of(context).primaryColor,
+              color: Theme.of(context).brightness == Brightness.dark 
+                ? Colors.white.withValues(alpha: 0.9) 
+                : Theme.of(context).primaryColor,
             ),
           ),
           const SizedBox(height: 16),
@@ -155,7 +157,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text(
             'Fast, secure, and free VPN service powered by advanced technology.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.8),
+              color: Theme.of(context).brightness == Brightness.dark 
+                ? Colors.white.withValues(alpha: 0.9) 
+                : Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.8),
             ),
             textAlign: TextAlign.center,
           ),
@@ -235,7 +239,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   'Full Stack Developer & UI/UX Designer',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+                    color: Theme.of(context).brightness == Brightness.dark 
+                      ? Colors.white.withValues(alpha: 0.7) 
+                      : Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.7),
                   ),
                 ),
               ],

@@ -52,6 +52,8 @@
             </intent-filter>
             <!-- Disable OpenVPN's built-in notification to use our custom one -->
             <meta-data android:name="de.blinkt.openvpn.NOTIFICATION_ALWAYS_VISIBLE" android:value="false" />
+            <meta-data android:name="de.blinkt.openvpn.NOTIFICATION_CHANNEL_ID" android:value="disabled" />
+            <meta-data android:name="de.blinkt.openvpn.NOTIFICATION_CHANNEL_NAME" android:value="Disabled" />
         </service>
 
         <service

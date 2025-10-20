@@ -73,7 +73,7 @@ class VpnController extends StateNotifier<VpnState> {
   VpnGateServer? _currentServer;
   Timer? _connectionTimeout;
   Timer? _connectionCheckTimer;
-  Timer? _notificationUpdateTimer;
+  bool _notificationShown = false; // Track if notification is already shown
   final SessionManager _sessionManager = SessionManager();
 
   /// Convert AllServers to VpnGateServer for compatibility
@@ -114,6 +114,15 @@ class VpnController extends StateNotifier<VpnState> {
       
       // Listen to native stage channel
       _stageChannel.receiveBroadcastStream().listen(_handleNativeStage);
+      
+      // Set up session manager callback for VPN disconnection
+      _sessionManager.setOnSessionExpired(() async {
+        print('⏰ Session expired - disconnecting VPN');
+        await disconnect();
+      });
+      
+      // Initialize session manager
+      await _sessionManager.initialize();
       
       // Load last known state early to reduce UI delay
       try {
@@ -354,8 +363,8 @@ class VpnController extends StateNotifier<VpnState> {
       _sessionManager.startSession();
       // Save server info for future reference
       await _saveCurrentServer(server);
-      // Start notification update timer
-      _startNotificationUpdateTimer();
+      // Don't start notification update timer to prevent spamming
+      // _startNotificationUpdateTimer();
       // await _startBackgroundService(); // Temporarily disabled to prevent crashes
       return true;
     }
@@ -478,10 +487,15 @@ class VpnController extends StateNotifier<VpnState> {
           _set(VpnState.connected);
           _sessionManager.startSession();
           // await _startBackgroundService(); // Temporarily disabled to prevent crashes
-          NotificationService().showConnected(
-            title: 'VPN Connected',
-            body: 'Connected to ${_currentServer?.countryLong ?? 'Unknown'}',
-          );
+          // Don't start notification update timer to prevent spamming
+          // _startNotificationUpdateTimer();
+          if (!_notificationShown) {
+            NotificationService().showStaticConnected(
+              title: 'VPN Connected',
+              body: 'Connected to ${_currentServer?.countryLong ?? 'Unknown'}',
+            );
+            _notificationShown = true;
+          }
         }
       } else if (state == VpnState.connected) {
         // Stop timer when connected
@@ -498,18 +512,20 @@ class VpnController extends StateNotifier<VpnState> {
 
   /// Start notification update timer
   void _startNotificationUpdateTimer() {
-    _notificationUpdateTimer?.cancel();
-    _notificationUpdateTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-      if (state == VpnState.connected) {
-        await updateNotification();
-      }
-    });
+    // Timer is disabled to prevent spamming
+    // _notificationUpdateTimer?.cancel();
+    // _notificationUpdateTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+    //   if (state == VpnState.connected) {
+    //     await updateNotification();
+    //   }
+    // });
   }
 
   /// Stop notification update timer
   void _stopNotificationUpdateTimer() {
-    _notificationUpdateTimer?.cancel();
-    _notificationUpdateTimer = null;
+    // Timer is disabled to prevent spamming
+    // _notificationUpdateTimer?.cancel();
+    // _notificationUpdateTimer = null;
   }
 
   // Background service methods temporarily disabled to prevent crashes
@@ -630,13 +646,16 @@ class VpnController extends StateNotifier<VpnState> {
       _set(VpnState.connected);
       // Start session when correcting state to connected
       _sessionManager.startSession();
-      // Start notification update timer
-      _startNotificationUpdateTimer();
+      // Don't start notification update timer to prevent spamming
+      // _startNotificationUpdateTimer();
       print('🔔 About to show notification - currentServer: ${_currentServer?.countryLong ?? 'null'}');
-      NotificationService().showConnected(
-        title: 'VPN Connected',
-        body: 'Connected to ${_currentServer?.countryLong ?? 'Unknown'}',
-      );
+      if (!_notificationShown) {
+        NotificationService().showStaticConnected(
+          title: 'VPN Connected',
+          body: 'Connected to ${_currentServer?.countryLong ?? 'Unknown'}',
+        );
+        _notificationShown = true;
+      }
       print('🔔 Notification shown with server: ${_currentServer?.countryLong ?? 'Unknown'}');
       return;
     } else if (!isConnected && state == VpnState.connected) {
@@ -667,6 +686,7 @@ class VpnController extends StateNotifier<VpnState> {
       
       _set(VpnState.disconnected);
       await _sessionManager.endSession();
+      _notificationShown = false; // Reset notification flag
       // Clear saved server info
       _currentServer = null;
       await _clearSavedServerInfo();
@@ -914,8 +934,9 @@ class VpnController extends StateNotifier<VpnState> {
         _stopConnectionCheckTimer();
         _stopNotificationUpdateTimer();
         _set(VpnState.disconnected);
-        _sessionManager.endSession();
-        NotificationService().showDisconnected();
+      _sessionManager.endSession();
+      _notificationShown = false; // Reset notification flag
+      NotificationService().showDisconnected();
         // Bring app to foreground after any system-tray or OS-triggered disconnect
         const platform = MethodChannel('vyntra.vpn.actions');
         try { platform.invokeMethod('bringToForeground'); } catch (_) {}
@@ -927,13 +948,16 @@ class VpnController extends StateNotifier<VpnState> {
         _connectionTimeout?.cancel();
         _set(VpnState.connected);
         _sessionManager.startSession();
-        // Start notification update timer
-        _startNotificationUpdateTimer();
-        // Show our custom notification immediately
-        NotificationService().showConnected(
+        // Don't start notification update timer to prevent spamming
+        // _startNotificationUpdateTimer();
+        // Show our custom static notification immediately (only if not already shown)
+        if (!_notificationShown) {
+          NotificationService().showStaticConnected(
           title: 'VPN Connected',
           body: 'Connected to ${_currentServer?.countryLong ?? 'Unknown'}',
-        ).catchError((e) => print('❌ Failed to show notification: $e'));
+          ).catchError((e) => print('❌ Failed to show notification: $e'));
+          _notificationShown = true;
+        }
       } else if (stageStr.contains('reconnecting')) {
         print('🔄 Reconnecting...');
         _set(VpnState.reconnecting);

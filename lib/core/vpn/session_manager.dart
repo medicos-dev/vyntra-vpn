@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../notify/notification_service.dart';
 
 class SessionManager {
   static const String _sessionKey = 'vpn_session_start';
@@ -9,6 +10,9 @@ class SessionManager {
   Timer? _sessionTimer;
   DateTime? _sessionStartTime;
   Duration _sessionDuration = _defaultSessionDuration;
+  
+  // Callback for VPN disconnection
+  Function()? _onSessionExpired;
   
   final StreamController<SessionStatus> _statusController = StreamController<SessionStatus>.broadcast();
   final StreamController<Duration> _timeRemainingController = StreamController<Duration>.broadcast();
@@ -25,6 +29,11 @@ class SessionManager {
   }
   
   bool get isSessionActive => currentStatus == SessionStatus.active && timeRemaining > Duration.zero;
+  
+  // Set callback for VPN disconnection
+  void setOnSessionExpired(Function() callback) {
+    _onSessionExpired = callback;
+  }
   
   Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
@@ -71,10 +80,45 @@ class SessionManager {
       final remaining = timeRemaining;
       _timeRemainingController.add(remaining);
       
+      // Check for warning notifications
+      if (remaining == const Duration(minutes: 10)) {
+        _showWarningNotification('10 minutes remaining', 'Your VPN session will end in 10 minutes');
+      } else if (remaining == const Duration(minutes: 5)) {
+        _showWarningNotification('5 minutes remaining', 'Your VPN session will end in 5 minutes');
+      }
+      
       if (remaining <= Duration.zero) {
-        _endSession();
+        _handleSessionExpired();
       }
     });
+  }
+  
+  void _showWarningNotification(String title, String body) {
+    try {
+      NotificationService().showWarning(title: title, body: body);
+      print('⚠️ Warning notification: $title');
+    } catch (e) {
+      print('❌ Failed to show warning notification: $e');
+    }
+  }
+  
+  Future<void> _handleSessionExpired() async {
+    print('⏰ Session expired - disconnecting VPN');
+    
+    // Show session expired notification
+    try {
+      NotificationService().showSessionExpired();
+    } catch (e) {
+      print('❌ Failed to show session expired notification: $e');
+    }
+    
+    // Call VPN disconnection callback
+    if (_onSessionExpired != null) {
+      _onSessionExpired!();
+    }
+    
+    // End the session
+    await _endSession();
   }
   
   Future<void> _saveSessionData() async {
