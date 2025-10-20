@@ -183,13 +183,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       final List<AllServers> fetched = await APIs.getVPNServers();
       if (mounted) {
         setState(() {
-          // Sort by Score (descending) and Ping (ascending)
+          // Sort by Speed (descending), then Ping (ascending), then Score (descending)
           fetched.sort((a, b) {
-            final scoreComparison = (b.Score ?? 0).compareTo(a.Score ?? 0);
-            if (scoreComparison != 0) return scoreComparison;
-            return (a.Ping ?? ServerConstants.maxPing).compareTo(b.Ping ?? ServerConstants.maxPing);
+            final speedComparison = (b.Speed ?? 0).compareTo(a.Speed ?? 0);
+            if (speedComparison != 0) return speedComparison;
+            final pingComparison = (a.Ping ?? ServerConstants.maxPing).compareTo(b.Ping ?? ServerConstants.maxPing);
+            if (pingComparison != 0) return pingComparison;
+            return (b.Score ?? 0).compareTo(a.Score ?? 0);
           });
-          
+
           // Map to existing VpnServer shape for UI compatibility
           servers = fetched.map((s) => VpnServer(
             id: s.HostName ?? '',
@@ -206,7 +208,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           )).toList();
           _loadingServers = false;
         });
-        
+
         // Cache the fresh data
         await _cacheServers(servers);
         
@@ -263,6 +265,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       await prefs.remove('vpngate_cache_timestamp');
       await prefs.remove('outline_servers_cache');
       await prefs.remove('outline_cache_timestamp');
+    } catch (_) {}
+
+    // Clear controller-side in-memory cache so Connect Fastest re-evaluates
+    try {
+      final ctrl = ref.read(vpnControllerProvider);
+      // Best-effort: force stage refresh to ensure state is up to date
+      await ctrl.refreshStage();
     } catch (_) {}
 
     if (mounted) {

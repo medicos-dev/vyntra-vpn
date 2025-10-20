@@ -88,15 +88,15 @@ class SessionManager {
     _sessionTimer?.cancel();
     // Emit immediately so UI shows correct remaining time on relaunch
     _timeRemainingController.add(timeRemaining);
-    // Tick every 30 seconds to reduce wakeups, while remaining accurate
-    _sessionTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+    // Tick every second for smooth UI countdown while app is in foreground
+    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       final remaining = timeRemaining;
       _timeRemainingController.add(remaining);
 
-      // Check for warning notifications approximately at thresholds
-      if (remaining.inMinutes == 10 && remaining.inSeconds % 60 == 0) {
+      // Check for warning notifications at thresholds
+      if (remaining == const Duration(minutes: 10)) {
         _showWarningNotification('10 minutes remaining', 'Your VPN session will end in 10 minutes');
-      } else if (remaining.inMinutes == 5 && remaining.inSeconds % 60 == 0) {
+      } else if (remaining == const Duration(minutes: 5)) {
         _showWarningNotification('5 minutes remaining', 'Your VPN session will end in 5 minutes');
       }
 
