@@ -75,6 +75,7 @@ class VpnController extends StateNotifier<VpnState> {
   Timer? _connectionCheckTimer;
   bool _notificationShown = false; // Track if notification is already shown
   final SessionManager _sessionManager = SessionManager();
+  DateTime? _lastNotificationUpdateAt;
   // Cache of last servers fetch to avoid hammering the API; refetch after 30s
   DateTime? _lastServersFetchAt;
   List<AllServers>? _lastFetchedServers;
@@ -217,15 +218,22 @@ class VpnController extends StateNotifier<VpnState> {
         print('  ${i + 1}. ${server.HostName} - Speed: ${server.Speed}bps, Ping: ${server.Ping}ms, Score: ${server.Score}, Country: ${server.CountryLong}');
       }
 
-      // Try connecting to the top 3 fastest servers directly
+      // Try connecting favoring the 2nd fastest first, then fastest, then 3rd
       final topServers = filteredServers.take(3).toList();
-      for (int i = 0; i < topServers.length; i++) {
+      final List<int> attemptOrder = switch (topServers.length) {
+        0 => <int>[],
+        1 => <int>[0],
+        2 => <int>[1, 0],
+        _ => <int>[1, 0, 2],
+      };
+      for (int idx = 0; idx < attemptOrder.length; idx++) {
+        final i = attemptOrder[idx];
         final server = topServers[i];
         _currentServer = _convertAllServersToVpnGateServer(server);
         // Save server info immediately when attempting connection
         await _saveCurrentServer(_currentServer!);
         
-        print('🎯 Attempting server ${i + 1}: ${server.HostName} (Score: ${server.Score}, Ping: ${server.Ping}ms)');
+        print('🎯 Attempting server (order ${idx + 1}) -> rank ${i + 1}: ${server.HostName} (Speed: ${server.Speed}, Ping: ${server.Ping}ms, Score: ${server.Score})');
 
         try {
           final success = await _attemptConnection(_currentServer!);
@@ -461,6 +469,12 @@ class VpnController extends StateNotifier<VpnState> {
   Future<void> updateNotification() async {
     print('🔔 updateNotification called - state: $state, currentServer: ${_currentServer?.countryLong ?? 'null'}');
     if (state == VpnState.connected) {
+      // Throttle updates to avoid flicker
+      final now = DateTime.now();
+      if (_lastNotificationUpdateAt != null && now.difference(_lastNotificationUpdateAt!).inMilliseconds < 1500) {
+        return;
+      }
+      _lastNotificationUpdateAt = now;
       // Load server info if not available
       if (_currentServer == null) {
         print('🔔 Loading server info for notification...');

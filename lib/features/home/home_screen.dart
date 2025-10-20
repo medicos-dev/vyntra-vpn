@@ -467,8 +467,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
               stream: ref.read(vpnControllerProvider).sessionManager.timeRemainingStream,
               initialData: ref.read(vpnControllerProvider).sessionManager.timeRemaining,
               builder: (context, snapshot) {
+                // Mirror the same session time formatting used in notification
                 final timeRemaining = snapshot.data ?? Duration.zero;
                 final sessionManager = ref.read(vpnControllerProvider).sessionManager;
+                final timeText = sessionManager.formatDuration(timeRemaining);
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
@@ -486,7 +488,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Session: ${sessionManager.formatDuration(timeRemaining)}',
+                        'Session: $timeText',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: const Color(0xFF00C851),
                           fontWeight: FontWeight.w600,
