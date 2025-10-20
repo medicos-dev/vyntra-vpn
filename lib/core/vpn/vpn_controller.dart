@@ -962,12 +962,18 @@ class VpnController extends StateNotifier<VpnState> {
       
       if (stageStr.contains('disconnected')) {
         print('❌ Disconnected');
+        // Guard against transient disconnect signals during app relaunch
+        final stillConnected = await _isVpnServiceConnected();
+        if (stillConnected) {
+          print('⚠️ Ignoring transient disconnected stage - service reports connected');
+          return;
+        }
         _stopConnectionCheckTimer();
         _stopNotificationUpdateTimer();
         _set(VpnState.disconnected);
-      _sessionManager.endSession();
-      _notificationShown = false; // Reset notification flag
-      NotificationService().showDisconnected();
+        await _sessionManager.endSession();
+        _notificationShown = false; // Reset notification flag
+        NotificationService().showDisconnected();
         // Bring app to foreground after any system-tray or OS-triggered disconnect
         const platform = MethodChannel('vyntra.vpn.actions');
         try { platform.invokeMethod('bringToForeground'); } catch (_) {}
