@@ -152,7 +152,16 @@ class AllServers {
     Ping = (json['Ping'] is String) ? int.tryParse(json['Ping'] as String) ?? ServerConstants.maxPing : json['Ping'] as int? ?? ServerConstants.maxPing;
     Speed = (json['Speed'] is String) ? int.tryParse(json['Speed'] as String) : json['Speed'] as int?;
     HasConfig = json['HasConfig'] as bool?;
-    OpenVPN_ConfigData_Base64 = json['OpenVPN_ConfigData_Base64'] as String?;
+    
+    // Handle Base64 config with better validation
+    final base64Config = json['OpenVPN_ConfigData_Base64'] as String?;
+    if (base64Config != null && base64Config.isNotEmpty) {
+      // Clean the Base64 string (remove any whitespace/newlines)
+      final cleanBase64 = base64Config.trim().replaceAll(RegExp(r'\s+'), '');
+      OpenVPN_ConfigData_Base64 = cleanBase64.isNotEmpty ? cleanBase64 : null;
+    } else {
+      OpenVPN_ConfigData_Base64 = null;
+    }
   }
 
   Map<String, dynamic> toJson() {

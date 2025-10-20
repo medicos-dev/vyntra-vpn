@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/network/vpngate_service.dart';
-import '../../core/network/unified_vpn_service.dart';
 import '../../core/models/vpn_server.dart';
 import '../../core/vpn/reconnect_watchdog.dart';
 import '../../core/vpn/vpn_controller.dart';
@@ -10,10 +8,8 @@ import '../settings/settings_screen.dart';
 import 'package:vyntra_app_aiks/core/network/apis.dart';
 import 'package:vyntra_app_aiks/core/models/vpndart.dart';
 import '../../core/constants/server_constants.dart';
-import '../../core/network/vpngate_api_service.dart';
 
-final vpngateProvider = Provider((ref) => VpnGateService());
-final unifiedVpnProvider = Provider((ref) => UnifiedVpnService());
+// Removed unused providers - using original APIs service
 final vpnControllerProvider = Provider((ref) {
   final controller = VpnController();
   controller.init(); // Initialize asynchronously
@@ -94,41 +90,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     });
     
     try {
-      // Use VpnGateApiService for proper CSV parsing
-      final List<VpnGateServer> fetched = await VpnGateApiService.fetchVpnGateServers();
+      // Use original APIs service
+      final List<AllServers> fetched = await APIs.getVPNServers();
       if (mounted) {
         setState(() {
-          // Sort by Score (descending) and Ping (ascending) - CRITICAL FIX
+          // Sort by Score (descending) and Ping (ascending)
           fetched.sort((a, b) {
-            final scoreComparison = b.score.compareTo(a.score);
+            final scoreComparison = (b.Score ?? 0).compareTo(a.Score ?? 0);
             if (scoreComparison != 0) return scoreComparison;
-            return a.ping.compareTo(b.ping);
+            return (a.Ping ?? ServerConstants.maxPing).compareTo(b.Ping ?? ServerConstants.maxPing);
           });
           
           // Map to existing VpnServer shape for UI compatibility
           servers = fetched.map((s) => VpnServer(
-            id: s.hostName,
-            name: s.hostName,
-            hostname: s.hostName,
-            ip: s.ip,
-            country: s.countryLong,
+            id: s.HostName ?? '',
+            name: s.HostName ?? '',
+            hostname: s.HostName ?? '',
+            ip: s.IP ?? '',
+            country: s.CountryLong ?? '',
             protocol: VpnProtocol.openvpn,
             port: 0,
-            speedBps: s.speed,
-            pingMs: s.ping,
-            ovpnBase64: s.openvpnConfigDataBase64 ?? '',
-            score: s.score, // Add score to VpnServer model
+            speedBps: s.Speed ?? 0,
+            pingMs: s.Ping ?? ServerConstants.maxPing,
+            ovpnBase64: s.OpenVPN_ConfigData_Base64 ?? '',
+            score: s.Score ?? 0,
           )).toList();
           _loadingServers = false;
         });
-        print('🏠 Home screen loaded ${servers.length} servers (VpnGateApiService)');
+        print('🏠 Home screen loaded ${servers.length} servers (APIs)');
         if (servers.isNotEmpty) {
           final bestServer = fetched.first;
-          print('🚀 Best server: ${bestServer.hostName} (${bestServer.countryLong}) - Score: ${bestServer.score}, Ping: ${bestServer.ping}ms, Speed: ${(bestServer.speed / 1000000).toStringAsFixed(1)}Mbps');
+          print('🚀 Best server: ${bestServer.HostName} (${bestServer.CountryLong}) - Score: ${bestServer.Score}, Ping: ${bestServer.Ping}ms, Speed: ${((bestServer.Speed ?? 0) / 1000000).toStringAsFixed(1)}Mbps');
         }
       }
     } catch (e) {
-      print('Error loading servers (VpnGateApiService): $e');
+      print('Error loading servers (APIs): $e');
       if (mounted) {
         setState(() {
           _loadingServers = false;

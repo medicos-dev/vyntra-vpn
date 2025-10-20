@@ -5,9 +5,47 @@ import 'package:flutter/services.dart';
 import 'package:openvpn_flutter/openvpn_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
-import '../network/vpngate_api_service.dart';
+import '../network/apis.dart';
+import '../models/vpndart.dart';
 import '../notify/notification_service.dart';
 import 'session_manager.dart';
+
+// Simple VpnGateServer class for compatibility
+class VpnGateServer {
+  final String hostName;
+  final String ip;
+  final int score;
+  final int ping;
+  final int speed;
+  final String countryLong;
+  final String countryShort;
+  final int numVpnSessions;
+  final int uptime;
+  final int totalUsers;
+  final int totalTraffic;
+  final String logType;
+  final String operator;
+  final String message;
+  final String? openvpnConfigDataBase64;
+
+  VpnGateServer({
+    required this.hostName,
+    required this.ip,
+    required this.score,
+    required this.ping,
+    required this.speed,
+    required this.countryLong,
+    required this.countryShort,
+    required this.numVpnSessions,
+    required this.uptime,
+    required this.totalUsers,
+    required this.totalTraffic,
+    required this.logType,
+    required this.operator,
+    required this.message,
+    this.openvpnConfigDataBase64,
+  });
+}
 
 enum VpnState {
   disconnected,
@@ -33,6 +71,27 @@ class VpnController extends StateNotifier<VpnState> {
   VpnGateServer? _currentServer;
   Timer? _connectionTimeout;
   final SessionManager _sessionManager = SessionManager();
+
+  /// Convert AllServers to VpnGateServer for compatibility
+  VpnGateServer _convertAllServersToVpnGateServer(AllServers server) {
+    return VpnGateServer(
+      hostName: server.HostName ?? '',
+      ip: server.IP ?? '',
+      score: server.Score ?? 0,
+      ping: server.Ping ?? 9999,
+      speed: server.Speed ?? 0,
+      countryLong: server.CountryLong ?? '',
+      countryShort: server.CountryLong ?? '',
+      numVpnSessions: 0,
+      uptime: 0,
+      totalUsers: 0,
+      totalTraffic: 0,
+      logType: '',
+      operator: '',
+      message: '',
+      openvpnConfigDataBase64: server.OpenVPN_ConfigData_Base64,
+    );
+  }
 
   // Getters
   VpnState get current => state;
@@ -60,14 +119,14 @@ class VpnController extends StateNotifier<VpnState> {
     }
   }
 
-  /// Connect to VPN using VPNGate API with direct Base64 decoding
+  /// Connect to VPN using original APIs service
   Future<bool> connect({String? country}) async {
     try {
       _set(VpnState.connecting);
       _lastError = '';
 
-      // Fetch servers from VPNGate API
-      final servers = await VpnGateApiService.fetchVpnGateServers();
+      // Fetch servers from original APIs service
+      final servers = await APIs.getVPNServers();
       if (servers.isEmpty) {
         _lastError = 'No VPN servers available. Please check your internet connection.';
         _set(VpnState.failed);
@@ -75,9 +134,11 @@ class VpnController extends StateNotifier<VpnState> {
       }
       
       // Filter by country if specified
-      List<VpnGateServer> filteredServers = servers;
+      List<AllServers> filteredServers = servers;
       if (country != null && country.isNotEmpty) {
-        filteredServers = VpnGateApiService.getServersByCountry(servers, country);
+        filteredServers = servers.where((server) => 
+          server.CountryLong?.toLowerCase().contains(country.toLowerCase()) == true
+        ).toList();
       }
 
       if (filteredServers.isEmpty) {
@@ -85,36 +146,36 @@ class VpnController extends StateNotifier<VpnState> {
         _set(VpnState.failed);
         return false;
       }
-
-      // Sort by Score (descending) and Ping (ascending) - CRITICAL FIX
+      
+      // Sort by Score (descending) and Ping (ascending)
       filteredServers.sort((a, b) {
-        final scoreComparison = b.score.compareTo(a.score);
+        final scoreComparison = (b.Score ?? 0).compareTo(a.Score ?? 0);
         if (scoreComparison != 0) return scoreComparison;
-        return a.ping.compareTo(b.ping);
+        return (a.Ping ?? 9999).compareTo(b.Ping ?? 9999);
       });
 
       print('📊 Top 5 servers by score:');
       for (int i = 0; i < filteredServers.length && i < 5; i++) {
         final server = filteredServers[i];
-        print('  ${i + 1}. ${server.hostName} - Score: ${server.score}, Ping: ${server.ping}ms, Country: ${server.countryLong}');
+        print('  ${i + 1}. ${server.HostName} - Score: ${server.Score}, Ping: ${server.Ping}ms, Country: ${server.CountryLong}');
       }
 
       // Try connecting to the top 3 servers directly
       final topServers = filteredServers.take(3).toList();
       for (int i = 0; i < topServers.length; i++) {
         final server = topServers[i];
-        _currentServer = server;
+        _currentServer = _convertAllServersToVpnGateServer(server);
         
-        print('🎯 Attempting server ${i + 1}: ${server.hostName} (Score: ${server.score}, Ping: ${server.ping}ms)');
+        print('🎯 Attempting server ${i + 1}: ${server.HostName} (Score: ${server.Score}, Ping: ${server.Ping}ms)');
 
         try {
-          final success = await _attemptConnection(server);
+          final success = await _attemptConnection(_currentServer!);
           if (success) {
-            print('✅ Connected successfully to ${server.hostName}');
+            print('✅ Connected successfully to ${server.HostName}');
             return true;
           }
         } catch (e) {
-          print('❌ Failed to connect to ${server.hostName}: $e');
+          print('❌ Failed to connect to ${server.HostName}: $e');
           if (i == topServers.length - 1) {
             _lastError = 'All connection attempts failed. Last error: $e';
           }
@@ -195,23 +256,48 @@ class VpnController extends StateNotifier<VpnState> {
 
     // Connect using OpenVPN Flutter with credentials
     print('🔐 Connecting with credentials: vpn/vpn');
-    await _engine!.connect(
-      preparedConfig, // The prepared config with UDP and credentials
-      'vpn', // name
-      username: 'vpn', // Username for VPN authentication
-      password: 'vpn', // Password for VPN authentication
-    );
-
-    // Wait for connection confirmation (single wait period)
-    await Future.delayed(const Duration(seconds: 5));
+    print('📋 Config preview (first 200 chars): ${preparedConfig.substring(0, preparedConfig.length > 200 ? 200 : preparedConfig.length)}...');
     
+    try {
+      await _engine!.connect(
+        preparedConfig, // The prepared config with UDP and credentials
+        'vpn', // name
+        username: 'vpn', // Username for VPN authentication
+        password: 'vpn', // Password for VPN authentication
+      );
+      print('✅ OpenVPN connect() called successfully');
+    } catch (e) {
+      print('❌ OpenVPN connect() failed: $e');
+      throw Exception('OpenVPN connect failed: $e');
+    }
+
+    // Wait for connection confirmation with more detailed logging
+    print('⏳ Waiting for connection confirmation...');
+    for (int i = 0; i < 10; i++) {
+      await Future.delayed(const Duration(seconds: 1));
+      print('🔄 Connection check ${i + 1}/10 - State: $state');
+      
+      if (state == VpnState.connected) {
+        print('✅ Connection successful!');
+        _connectionTimeout?.cancel();
+        return true;
+      } else if (state == VpnState.failed) {
+        print('❌ Connection failed!');
+        _connectionTimeout?.cancel();
+        _engine?.disconnect();
+        return false;
+      }
+    }
+    
+    // If we get here, connection is still in progress
+    print('⏰ Connection still in progress after 10 seconds, checking final state...');
     if (state == VpnState.connected) {
       _connectionTimeout?.cancel();
       return true;
     } else {
-      // Connection failed or timed out
+      print('❌ Connection timed out or failed');
       _connectionTimeout?.cancel();
-      _engine?.disconnect(); // Clean up failed connection
+      _engine?.disconnect();
       return false;
     }
   }
@@ -427,7 +513,7 @@ class VpnController extends StateNotifier<VpnState> {
             print('✅ Internet reachability confirmed via $dns');
             return true;
           }
-        } catch (e) {
+      } catch (e) {
           print('⚠️ DNS lookup failed for $dns: $e');
           continue;
         }
@@ -464,10 +550,13 @@ class VpnController extends StateNotifier<VpnState> {
       final stageStr = stage.toLowerCase();
       
       if (stageStr.contains('disconnected')) {
+        print('❌ Disconnected');
         _set(VpnState.disconnected);
       } else if (stageStr.contains('connecting') || stageStr.contains('wait')) {
+        print('🔄 Still connecting...');
         _set(VpnState.connecting);
       } else if (stageStr.contains('connected')) {
+        print('✅ Connection established!');
         _connectionTimeout?.cancel();
         _set(VpnState.connected);
         _sessionManager.startSession();
@@ -476,6 +565,7 @@ class VpnController extends StateNotifier<VpnState> {
           body: 'Connected to ${_currentServer?.countryLong ?? 'Unknown'}',
         );
       } else if (stageStr.contains('reconnecting')) {
+        print('🔄 Reconnecting...');
         _set(VpnState.reconnecting);
       } else if (stageStr.contains('auth') || stageStr.contains('authentication') || stageStr.contains('credential')) {
         _lastError = 'Authentication failed - using vpn/vpn credentials';

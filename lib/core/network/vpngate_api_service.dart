@@ -104,7 +104,7 @@ class VpnGateServer {
 }
 
 class VpnGateApiService {
-  static const String _apiUrl = 'https://www.vpngate.net/api/iphone/';
+  static const String _apiUrl = 'http://www.vpngate.net/api/iphone/';
 
   /// Fetch VPN servers from VPNGate API
   static Future<List<VpnGateServer>> fetchVpnGateServers() async {

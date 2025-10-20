@@ -9,6 +9,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import id.laskarmedia.openvpn_flutter.OpenVPNFlutterPlugin
 
 class MainActivity : FlutterActivity() {
     private val methodChannelName = "vpnControl"
@@ -110,5 +111,11 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) {
             // ignore sink errors
         }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        // Handle VPN permission result
+        OpenVPNFlutterPlugin.connectWhileGranted(requestCode == 24 && resultCode == RESULT_OK)
+        super.onActivityResult(requestCode, resultCode, data)
     }
 }
