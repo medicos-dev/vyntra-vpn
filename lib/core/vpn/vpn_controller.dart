@@ -463,7 +463,11 @@ class VpnController extends StateNotifier<VpnState> {
       await prefs.setString('current_server_country', server.countryLong);
       await prefs.setString('current_server_host', server.hostName);
       await prefs.setString('current_server_ip', server.ip);
-      print('💾 Saved server info: ${server.countryLong}');
+      await prefs.setString('current_server_config', server.openvpnConfigDataBase64 ?? '');
+      await prefs.setInt('current_server_score', server.score);
+      await prefs.setInt('current_server_ping', server.ping);
+      await prefs.setInt('current_server_speed', server.speed);
+      print('💾 Saved detailed server info: ${server.countryLong}');
     } catch (e) {
       print('❌ Failed to save server info: $e');
     }
@@ -476,14 +480,18 @@ class VpnController extends StateNotifier<VpnState> {
       final country = prefs.getString('current_server_country');
       final host = prefs.getString('current_server_host');
       final ip = prefs.getString('current_server_ip');
+      final config = prefs.getString('current_server_config');
+      final score = prefs.getInt('current_server_score');
+      final ping = prefs.getInt('current_server_ping');
+      final speed = prefs.getInt('current_server_speed');
       
       if (country != null && host != null && ip != null) {
         final server = VpnGateServer(
           hostName: host,
           ip: ip,
-          score: 0,
-          ping: 0,
-          speed: 0,
+          score: score ?? 0,
+          ping: ping ?? 0,
+          speed: speed ?? 0,
           countryLong: country,
           countryShort: country,
           numVpnSessions: 0,
@@ -493,9 +501,9 @@ class VpnController extends StateNotifier<VpnState> {
           logType: '',
           operator: '',
           message: '',
-          openvpnConfigDataBase64: '',
+          openvpnConfigDataBase64: config ?? '',
         );
-        print('📂 Loaded server info: $country');
+        print('📂 Loaded detailed server info: $country (Score: ${score ?? 0}, Ping: ${ping ?? 0}ms)');
         return server;
       }
     } catch (e) {
@@ -511,6 +519,10 @@ class VpnController extends StateNotifier<VpnState> {
       await prefs.remove('current_server_country');
       await prefs.remove('current_server_host');
       await prefs.remove('current_server_ip');
+      await prefs.remove('current_server_config');
+      await prefs.remove('current_server_score');
+      await prefs.remove('current_server_ping');
+      await prefs.remove('current_server_speed');
       print('🗑️ Cleared saved server info');
     } catch (e) {
       print('❌ Failed to clear server info: $e');

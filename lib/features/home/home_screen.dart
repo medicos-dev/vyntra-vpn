@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../../core/models/vpn_server.dart';
 import '../../core/vpn/reconnect_watchdog.dart';
 import '../../core/vpn/vpn_controller.dart';
@@ -63,12 +65,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     Future.microtask(() async {
       final ctrl = ref.read(vpnControllerProvider);
       await ctrl.init();
-      _watchdog = ReconnectWatchdog(
-        controller: ctrl,
-      );
-      await _watchdog!.start();
-      // Only load servers on startup, don't auto-connect
-      await _loadServers();
+      // Temporarily disable watchdog to prevent auto-reconnection
+      // _watchdog = ReconnectWatchdog(
+      //   controller: ctrl,
+      // );
+      // await _watchdog!.start();
+      // Load servers from cache first, then refresh if needed
+      await _loadServersFromCache();
     });
   }
 
@@ -80,6 +83,55 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       // Immediately refresh stage without delay
       ctrl.refreshStage();
       print('🔄 App resumed - refreshing VPN state immediately');
+    }
+  }
+
+  Future<void> _loadServersFromCache() async {
+    try {
+      // Try to load from SharedPreferences cache first
+      final prefs = await SharedPreferences.getInstance();
+      final cachedServersJson = prefs.getString('cached_servers');
+      final cacheTimestamp = prefs.getInt('servers_cache_timestamp');
+      
+      if (cachedServersJson != null && cacheTimestamp != null) {
+        // Check if cache is still valid (1 hour)
+        final cacheTime = DateTime.fromMillisecondsSinceEpoch(cacheTimestamp);
+        final now = DateTime.now();
+        final cacheAge = now.difference(cacheTime);
+        
+        if (cacheAge.inHours < 1) {
+          // Use cached data
+          final List<dynamic> cachedServers = json.decode(cachedServersJson);
+          if (mounted) {
+            setState(() {
+              servers = cachedServers.map((s) => VpnServer(
+                id: s['id'] ?? '',
+                name: s['name'] ?? '',
+                hostname: s['hostname'] ?? '',
+                ip: s['ip'] ?? '',
+                country: s['country'] ?? '',
+                protocol: VpnProtocol.openvpn,
+                port: s['port'] ?? 0,
+                speedBps: s['speedBps'] ?? 0,
+                pingMs: s['pingMs'] ?? 9999,
+                ovpnBase64: s['ovpnBase64'] ?? '',
+                score: s['score'] ?? 0,
+              )).toList();
+              _loadingServers = false;
+            });
+          }
+          print('📱 Loaded ${servers.length} servers from cache');
+          return;
+        }
+      }
+      
+      // Cache expired or doesn't exist, load fresh data
+      print('📱 Cache expired or missing, loading fresh servers...');
+      await _loadServers(forceRefresh: true);
+    } catch (e) {
+      print('❌ Error loading from cache: $e');
+      // Fallback to fresh load
+      await _loadServers(forceRefresh: true);
     }
   }
 
@@ -127,6 +179,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           )).toList();
           _loadingServers = false;
         });
+        
+        // Cache the fresh data
+        await _cacheServers(servers);
+        
         print('🏠 Home screen loaded ${servers.length} servers (APIs) - Fresh data');
         if (servers.isNotEmpty) {
           final bestServer = fetched.first;
@@ -140,6 +196,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           _loadingServers = false;
         });
       }
+    }
+  }
+
+  Future<void> _cacheServers(List<VpnServer> servers) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final serversJson = servers.map((s) => {
+        'id': s.id,
+        'name': s.name,
+        'hostname': s.hostname,
+        'ip': s.ip,
+        'country': s.country,
+        'port': s.port,
+        'speedBps': s.speedBps,
+        'pingMs': s.pingMs,
+        'ovpnBase64': s.ovpnBase64,
+        'score': s.score,
+      }).toList();
+      
+      await prefs.setString('cached_servers', json.encode(serversJson));
+      await prefs.setInt('servers_cache_timestamp', DateTime.now().millisecondsSinceEpoch);
+      print('💾 Cached ${servers.length} servers');
+    } catch (e) {
+      print('❌ Failed to cache servers: $e');
     }
   }
 

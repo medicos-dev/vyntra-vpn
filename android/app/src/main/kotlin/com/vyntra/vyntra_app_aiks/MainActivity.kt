@@ -105,6 +105,11 @@ class MainActivity : FlutterActivity() {
                         emitStage("disconnected")
                         result.success(true)
                     }
+                    "bringToForeground" -> {
+                        Log.d("VPNControl", "Bringing app to foreground")
+                        bringAppToForeground()
+                        result.success(true)
+                    }
                     "startBackgroundService" -> {
                         startBackgroundService()
                         result.success(true)
@@ -206,6 +211,18 @@ class MainActivity : FlutterActivity() {
     private fun stopBackgroundService() {
         val intent = Intent(this, VpnBackgroundService::class.java)
         stopService(intent)
+    }
+
+    private fun bringAppToForeground() {
+        try {
+            val intent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            startActivity(intent)
+            Log.d("MainActivity", "App brought to foreground")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to bring app to foreground", e)
+        }
     }
 
     private fun isVpnConnected(): Boolean {

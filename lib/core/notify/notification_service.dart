@@ -25,6 +25,10 @@ class NotificationService {
           try { 
             await platform.invokeMethod('disconnect');
             print('✅ Disconnect stage emitted from notification');
+            
+            // Bring app to foreground after disconnect
+            await platform.invokeMethod('bringToForeground');
+            print('✅ App brought to foreground');
           } catch (e) {
             print('❌ Failed to emit disconnect stage from notification: $e');
           }
@@ -56,8 +60,14 @@ class NotificationService {
     }
   }
 
-  Future<void> showConnected({required String title, required String body}) async {
+  Future<void> showConnected({required String title, required String body, String? uploadSpeed, String? downloadSpeed}) async {
     try {
+      // Create enhanced body with traffic stats
+      String enhancedBody = body;
+      if (uploadSpeed != null && downloadSpeed != null) {
+        enhancedBody += '\n📊 ↑ $uploadSpeed ↓ $downloadSpeed';
+      }
+      
       final AndroidNotificationDetails android = AndroidNotificationDetails(
         _channelId,
         'VPN Status',
@@ -69,12 +79,12 @@ class NotificationService {
         actions: <AndroidNotificationAction>[
           const AndroidNotificationAction('disconnect', 'Disconnect', showsUserInterface: false, cancelNotification: false)
         ],
-        styleInformation: const BigTextStyleInformation(''),
+        styleInformation: BigTextStyleInformation(enhancedBody),
         showWhen: true,
         when: DateTime.now().millisecondsSinceEpoch,
       );
-      await _plugin.show(1, title, body, NotificationDetails(android: android), payload: '');
-      print('✅ Notification shown successfully: $title - $body');
+      await _plugin.show(1, title, enhancedBody, NotificationDetails(android: android), payload: '');
+      print('✅ Single notification shown successfully: $title - $enhancedBody');
     } catch (e) {
       print('❌ Failed to show notification: $e');
     }
@@ -87,28 +97,13 @@ class NotificationService {
     String? downloadSpeed,
     String? sessionTime,
   }) async {
-    String notificationBody = body;
-    if (uploadSpeed != null && downloadSpeed != null) {
-      notificationBody += '\n📊 ↑ $uploadSpeed ↓ $downloadSpeed';
-    }
-    if (sessionTime != null) {
-      notificationBody += '\n⏱️ $sessionTime';
-    }
-
-    final AndroidNotificationDetails android = AndroidNotificationDetails(
-      _channelId,
-      'VPN Status',
-      channelDescription: 'Shows the current VPN connection status',
-      ongoing: true,
-      onlyAlertOnce: true,
-      importance: Importance.low,
-      priority: Priority.low,
-      actions: <AndroidNotificationAction>[
-        const AndroidNotificationAction('disconnect', 'Disconnect', showsUserInterface: false, cancelNotification: false)
-      ],
-      styleInformation: BigTextStyleInformation(notificationBody),
+    // Use the main showConnected method to maintain single notification
+    await showConnected(
+      title: title,
+      body: body,
+      uploadSpeed: uploadSpeed,
+      downloadSpeed: downloadSpeed,
     );
-    await _plugin.show(1, title, notificationBody, NotificationDetails(android: android), payload: '');
   }
 
   Future<void> showDisconnected() async {
