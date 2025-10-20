@@ -1,0 +1,1750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Vyntra — Private, Fast, and Free VPN</title>
+    <meta name="description" content="Vyntra is a privacy-first free VPN that helps you browse securely with one tap. Learn about features, trust, and how it works." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="icon" href="assets/vyntra logo.png" />
+
+    <style>
+        :root{
+            --bg:#0f1220;
+            --panel:#171a2a;
+            --panel-2:#121528;
+            --text:#e8ebff;
+            --muted:#a9b0d9;
+            --brand:#7c5cff;
+            --brand-2:#5ce1e6;
+            --accent:#ffd166;
+            --ok:#58e28f;
+            --danger:#ff6b6b;
+            --max:1200px;
+            --radius:14px;
+            --shadow:0 10px 30px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.04);
+        }
+        
+        /* Splash Screen */
+        .splash-screen{
+            position:fixed;
+            top:0;
+            left:0;
+            width:100%;
+            height:100%;
+            background:linear-gradient(135deg, var(--bg), var(--panel));
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            z-index:9999;
+            opacity:1;
+            transition:opacity 0.8s ease-out, transform 0.8s ease-out;
+        }
+        .splash-screen.fade-out{
+            opacity:0;
+            transform:scale(1.1);
+            pointer-events:none;
+        }
+        .splash-logo{
+            width:120px;
+            height:120px;
+            background:url('assets/no bg.png') center/contain no-repeat;
+            animation:splash-pulse 2s ease-in-out infinite;
+            margin-bottom:30px;
+        }
+        .splash-text{
+            font-size:32px;
+            font-weight:800;
+            color:var(--text);
+            margin-bottom:20px;
+            opacity:0;
+            animation:splash-fade-in 1s ease-out 0.5s forwards;
+        }
+        .splash-subtitle{
+            font-size:16px;
+            color:var(--muted);
+            opacity:0;
+            animation:splash-fade-in 1s ease-out 1s forwards;
+        }
+        .splash-loader{
+            width:40px;
+            height:40px;
+            border:3px solid rgba(124,92,255,.2);
+            border-top:3px solid var(--brand);
+            border-radius:50%;
+            animation:spin 1s linear infinite;
+            margin-top:30px;
+            opacity:0;
+            animation:splash-fade-in 1s ease-out 1.5s forwards, spin 1s linear infinite 1.5s;
+        }
+        @keyframes splash-pulse{
+            0%,100%{transform:scale(1);opacity:1}
+            50%{transform:scale(1.05);opacity:0.9}
+        }
+        @keyframes splash-fade-in{
+            to{opacity:1}
+        }
+        @keyframes spin{
+            0%{transform:rotate(0deg)}
+            100%{transform:rotate(360deg)}
+        }
+        
+        *{box-sizing:border-box;margin:0;padding:0}
+        html,body{height:100%;margin:0;padding:0}
+        html{scroll-behavior:smooth}
+        body{
+            font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+            background:var(--bg);
+            color:var(--text);
+            -webkit-font-smoothing:antialiased;
+            -moz-osx-font-smoothing:grayscale;
+            overflow-x:hidden;
+            position:relative;
+            line-height:1.6;
+        }
+        
+        /* Parallax Background Blobs */
+        .parallax-bg{
+            position:fixed;
+            top:0;
+            left:0;
+            width:100%;
+            height:100%;
+            z-index:-1;
+            pointer-events:none;
+        }
+        .blob{
+            position:absolute;
+            border-radius:50%;
+            filter:blur(40px);
+            opacity:0.6;
+            animation:float 20s ease-in-out infinite;
+        }
+        .blob-1{
+            width:300px;
+            height:300px;
+            background:radial-gradient(circle, rgba(124,92,255,0.3), transparent);
+            top:10%;
+            left:10%;
+            animation-delay:0s;
+        }
+        .blob-2{
+            width:200px;
+            height:200px;
+            background:radial-gradient(circle, rgba(92,225,230,0.2), transparent);
+            top:60%;
+            right:15%;
+            animation-delay:5s;
+        }
+        .blob-3{
+            width:250px;
+            height:250px;
+            background:radial-gradient(circle, rgba(255,209,102,0.15), transparent);
+            bottom:20%;
+            left:20%;
+            animation-delay:10s;
+        }
+        .blob-4{
+            width:180px;
+            height:180px;
+            background:radial-gradient(circle, rgba(88,226,143,0.2), transparent);
+            top:30%;
+            right:30%;
+            animation-delay:15s;
+        }
+        @keyframes float{
+            0%,100%{transform:translateY(0px) translateX(0px) scale(1);}
+            25%{transform:translateY(-20px) translateX(10px) scale(1.1);}
+            50%{transform:translateY(-10px) translateX(-15px) scale(0.9);}
+            75%{transform:translateY(-30px) translateX(5px) scale(1.05);}
+        }
+        
+        a{color:inherit;text-decoration:none}
+        img{max-width:100%;display:block}
+        .container{width:100%;max-width:var(--max);margin:0 auto;padding:0 24px}
+
+
+        /* Nav */
+        .nav{
+            position:fixed;
+            top:0;
+            left:0;
+            right:0;
+            z-index:40;
+            backdrop-filter:saturate(160%) blur(10px);
+            background:linear-gradient(180deg, rgba(15,18,32,.85), rgba(15,18,32,.65));
+            border-bottom:1px solid rgba(255,255,255,.06);
+            transition:all .3s ease;
+        }
+        .nav-inner{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            padding:14px 0;
+        }
+        .brand{
+            display:flex;
+            align-items:center;
+            gap:12px;
+        }
+        .brand-mark{
+            width:36px;
+            height:36px;
+            border-radius:10px;
+            background:url('assets/vyntra logo.png') center/contain no-repeat;
+            box-shadow:var(--shadow);
+        }
+        .brand h1{
+            font-size:18px;
+            margin:0;
+            font-weight:800;
+            letter-spacing:.2px;
+        }
+        .nav-links{
+            display:flex;
+            gap:24px;
+            align-items:center;
+        }
+        .nav-links a{
+            color:var(--muted);
+            font-weight:600;
+            transition:color .3s ease;
+        }
+        .nav-links a:hover{
+            color:var(--brand);
+        }
+        .cta{
+            padding:10px 16px;
+            border-radius:12px;
+            background:linear-gradient(135deg, var(--brand), var(--brand-2));
+            color:#070b18;
+            font-weight:800;
+            box-shadow:var(--shadow);
+            transition:all .3s ease;
+        }
+        .cta:hover{
+            transform:translateY(-2px);
+            box-shadow:0 8px 25px rgba(0,0,0,.3);
+        }
+
+        /* Hero */
+        .hero{
+            padding:140px 0 80px;
+            position:relative;
+            overflow:hidden;
+            min-height:100vh;
+            display:flex;
+            align-items:center;
+        }
+        .hero-grid{
+            display:grid;
+            grid-template-columns:1.1fr .9fr;
+            gap:48px;
+            align-items:center;
+            width:100%;
+        }
+        .tag{
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            padding:8px 12px;
+            border-radius:999px;
+            background:rgba(124,92,255,.12);
+            color:#d8d2ff;
+            border:1px solid rgba(124,92,255,.35);
+            font-weight:700;
+            margin-bottom:20px;
+            opacity:0;
+            transform:translateY(20px);
+            animation:slideInUp 0.8s ease-out 0.3s forwards;
+        }
+        /* Enhanced Professional UI */
+        .hero h2{
+            background:linear-gradient(135deg, var(--text), var(--brand), var(--brand-2));
+            background-clip:text;
+            -webkit-background-clip:text;
+            -webkit-text-fill-color:transparent;
+            background-size:200% 200%;
+            animation:gradient-shift 3s ease-in-out infinite;
+        }
+        @keyframes gradient-shift{
+            0%,100%{background-position:0% 50%}
+            50%{background-position:100% 50%}
+        }
+        
+        .btn{
+            position:relative;
+            overflow:hidden;
+            background:linear-gradient(135deg, var(--panel), rgba(124,92,255,.1));
+            border:1px solid rgba(124,92,255,.2);
+            backdrop-filter:blur(10px);
+        }
+        .btn::after{
+            content:"";
+            position:absolute;
+            top:0;
+            left:0;
+            right:0;
+            bottom:0;
+            background:linear-gradient(135deg, transparent, rgba(255,255,255,.05), transparent);
+            transform:translateX(-100%);
+            transition:transform .6s ease;
+        }
+        .btn:hover::after{
+            transform:translateX(100%);
+        }
+        .btn.primary{
+            background:linear-gradient(135deg, var(--brand), var(--brand-2));
+            box-shadow:0 8px 32px rgba(124,92,255,.3);
+        }
+        .btn.primary:hover{
+            box-shadow:0 12px 40px rgba(124,92,255,.4);
+            transform:translateY(-3px);
+        }
+        
+        .card{
+            background:linear-gradient(135deg, var(--panel), rgba(124,92,255,.02));
+            border:1px solid rgba(124,92,255,.1);
+            backdrop-filter:blur(20px);
+            position:relative;
+        }
+        .card::after{
+            content:"";
+            position:absolute;
+            top:0;
+            left:0;
+            right:0;
+            bottom:0;
+            background:linear-gradient(135deg, transparent, rgba(92,225,230,.03), transparent);
+            opacity:0;
+            transition:opacity .3s ease;
+            pointer-events:none;
+        }
+        .card:hover::after{
+            opacity:1;
+        }
+        
+        .glass{
+            backdrop-filter:blur(20px) saturate(180%);
+            background:linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+            border:1px solid rgba(255,255,255,.1);
+        }
+        
+        .nav{
+            backdrop-filter:blur(20px) saturate(180%);
+            background:linear-gradient(180deg, rgba(15,18,32,.9), rgba(15,18,32,.7));
+        }
+        
+        /* Floating particles enhancement */
+        .hero::before{
+            content:"";
+            position:absolute;
+            top:0;
+            left:0;
+            right:0;
+            bottom:0;
+            background-image:
+                radial-gradient(2px 2px at 20px 30px, rgba(124,92,255,.3), transparent),
+                radial-gradient(2px 2px at 40px 70px, rgba(92,225,230,.2), transparent),
+                radial-gradient(1px 1px at 90px 40px, rgba(255,209,102,.3), transparent),
+                radial-gradient(1px 1px at 130px 80px, rgba(88,226,143,.2), transparent);
+            background-repeat:repeat;
+            background-size:200px 200px;
+            animation:particles 20s linear infinite;
+            pointer-events:none;
+        }
+        @keyframes particles{
+            0%{transform:translateY(0px)}
+            100%{transform:translateY(-200px)}
+        }
+        .hero p{
+            color:var(--muted);
+            font-size:18px;
+            max-width:56ch;
+            margin-bottom:30px;
+            opacity:0;
+            transform:translateY(20px);
+            animation:slideInUp 0.8s ease-out 0.7s forwards;
+        }
+        .hero-actions{
+            display:flex;
+            gap:14px;
+            margin-top:22px;
+            flex-wrap:wrap;
+            opacity:0;
+            transform:translateY(20px);
+            animation:slideInUp 0.8s ease-out 0.9s forwards;
+        }
+        .btn{
+            padding:14px 18px;
+            border-radius:12px;
+            border:1px solid rgba(255,255,255,.08);
+            background:var(--panel);
+            color:var(--text);
+            font-weight:700;
+            transition:all .3s ease;
+            position:relative;
+            overflow:hidden;
+            cursor:pointer;
+        }
+        .btn::before{
+            content:"";
+            position:absolute;
+            top:0;
+            left:-100%;
+            width:100%;
+            height:100%;
+            background:linear-gradient(90deg, transparent, rgba(255,255,255,.1), transparent);
+            transition:left .6s ease;
+        }
+        .btn:hover::before{
+            left:100%;
+        }
+        .btn.primary{
+            background:linear-gradient(135deg, var(--brand), var(--brand-2));
+            color:#0b0f1f;
+        }
+        .btn:hover{
+            transform:translateY(-2px);
+            box-shadow:0 8px 25px rgba(0,0,0,.3);
+        }
+        .hero-visual{
+            position:relative;
+            opacity:0;
+            transform:translateX(30px);
+            animation:slideInRight 0.8s ease-out 1.1s forwards;
+        }
+        .glass{
+            position:relative;
+            border-radius:18px;
+            background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+            border:1px solid rgba(255,255,255,.08);
+            box-shadow:var(--shadow);
+            overflow:hidden;
+            transition:transform .3s ease;
+            backdrop-filter:blur(20px) saturate(180%);
+        }
+        .glass::before{
+            content:"";
+            position:absolute;
+            top:0;
+            left:0;
+            right:0;
+            bottom:0;
+            background:linear-gradient(45deg, transparent, rgba(124,92,255,.05), transparent);
+            opacity:0;
+            transition:opacity .3s ease;
+            pointer-events:none;
+        }
+        .glass:hover::before{
+            opacity:1;
+        }
+        .glass:hover{
+            transform:scale(1.02);
+            box-shadow:0 20px 40px rgba(0,0,0,.3), inset 0 0 0 1px rgba(124,92,255,.2);
+        }
+        .glass::after{
+            content:"";
+            position:absolute;
+            inset:-40% -20%;
+            background:radial-gradient(600px 300px at 10% 0%, rgba(92,225,230,.2), transparent 60%);
+            animation:float 6s ease-in-out infinite;
+        }
+        
+        /* Enhanced Glass Effects for Different Elements */
+        .glass-card{
+            position:relative;
+            background:linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+            border:1px solid rgba(255,255,255,.1);
+            border-radius:20px;
+            padding:24px;
+            backdrop-filter:blur(20px) saturate(180%);
+            overflow:hidden;
+            transition:all .4s ease;
+        }
+        .glass-card::before{
+            content:"";
+            position:absolute;
+            top:0;
+            left:0;
+            right:0;
+            bottom:0;
+            background:linear-gradient(135deg, rgba(124,92,255,.1), rgba(92,225,230,.05));
+            opacity:0;
+            transition:opacity .4s ease;
+        }
+        .glass-card:hover::before{
+            opacity:1;
+        }
+        .glass-card:hover{
+            transform:translateY(-8px);
+            box-shadow:0 25px 50px rgba(0,0,0,.3);
+        }
+
+        /* Animated overlays for CTA glass panels */
+        .cta-anim{position:absolute;inset:0;pointer-events:none;z-index:0}
+        .cta-anim .shine{position:absolute;top:-20%;left:-30%;width:40%;height:140%;background:linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);transform:skewX(-20deg);animation:shine-sweep 5s ease-in-out infinite}
+        @keyframes shine-sweep{0%{left:-30%}50%{left:120%}100%{left:120%}}
+        .cta-anim .orb{position:absolute;width:18px;height:18px;border-radius:50%;background:radial-gradient(circle, rgba(124,92,255,.8), rgba(124,92,255,0));box-shadow:0 0 20px rgba(124,92,255,.6)}
+        .cta-anim .orb.o1{top:16%;left:14%;animation:orbital 8s ease-in-out infinite}
+        .cta-anim .orb.o2{bottom:18%;right:18%;animation:orbital 10s ease-in-out infinite reverse}
+        @keyframes orbital{0%,100%{transform:translate(0,0)}25%{transform:translate(8px,-6px)}50%{transform:translate(0,-12px)}75%{transform:translate(-6px,-4px)}}
+        .cta-anim .line{position:absolute;height:2px;left:8%;right:8%;background:linear-gradient(90deg, transparent, var(--brand-2), transparent);opacity:.6;filter:blur(.2px)}
+        .cta-anim .line.l1{top:28%;animation:flow 4.5s ease-in-out infinite}
+        .cta-anim .line.l2{top:52%;animation:flow 5.5s ease-in-out infinite .6s}
+        .cta-anim .line.l3{top:76%;animation:flow 6.5s ease-in-out infinite 1.1s}
+        @keyframes flow{0%{transform:translateX(-10%);opacity:.1}50%{transform:translateX(10%);opacity:.7}100%{transform:translateX(20%);opacity:.1}}
+        
+        .glass-nav{
+            backdrop-filter:blur(20px) saturate(180%);
+            background:linear-gradient(180deg, rgba(15,18,32,.9), rgba(15,18,32,.7));
+            border-bottom:1px solid rgba(255,255,255,.1);
+        }
+        
+        .glass-button{
+            position:relative;
+            background:linear-gradient(135deg, rgba(255,255,255,.1), rgba(255,255,255,.05));
+            border:1px solid rgba(255,255,255,.2);
+            backdrop-filter:blur(10px);
+            overflow:hidden;
+        }
+        .glass-button::before{
+            content:"";
+            position:absolute;
+            top:0;
+            left:-100%;
+            width:100%;
+            height:100%;
+            background:linear-gradient(90deg, transparent, rgba(255,255,255,.2), transparent);
+            transition:left .6s ease;
+        }
+        .glass-button:hover::before{
+            left:100%;
+        }
+        .hero-device{
+            aspect-ratio:16/10;
+            background:linear-gradient(160deg, #111426, #0c1021);
+            display:grid;
+            place-items:center;
+            position:relative;
+            overflow:hidden;
+        }
+        .device-screen{
+            position:relative;
+            width:100%;
+            height:100%;
+            background:linear-gradient(135deg, rgba(15,18,32,0.8), rgba(23,26,42,0.6));
+            border-radius:12px;
+            overflow:hidden;
+        }
+        .connection-status{
+            position:absolute;
+            top:20px;
+            left:20px;
+            display:flex;
+            align-items:center;
+            gap:12px;
+        }
+        .status-indicator{
+            position:relative;
+            width:40px;
+            height:40px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+        }
+        .pulse-ring{
+            position:absolute;
+            width:40px;
+            height:40px;
+            border:2px solid var(--ok);
+            border-radius:50%;
+            animation:pulse-ring 2s ease-out infinite;
+        }
+        .pulse-ring.delay-1{
+            animation-delay:0.5s;
+        }
+        .pulse-ring.delay-2{
+            animation-delay:1s;
+        }
+        .hero-device .led{
+            width:12px;
+            height:12px;
+            border-radius:999px;
+            background:linear-gradient(180deg, var(--ok), #15c46d 70%);
+            animation:pulse 2s ease-in-out infinite;
+            z-index:10;
+        }
+        .status-text{
+            color:var(--ok);
+            font-size:14px;
+            font-weight:600;
+            text-shadow:0 0 10px rgba(88,226,143,0.5);
+        }
+        .data-flow{
+            position:absolute;
+            top:50%;
+            left:0;
+            right:0;
+            height:2px;
+            background:linear-gradient(90deg, transparent, var(--brand), transparent);
+            animation:data-flow 3s ease-in-out infinite;
+        }
+        .data-packet{
+            position:absolute;
+            width:8px;
+            height:8px;
+            background:var(--brand-2);
+            border-radius:50%;
+            top:-3px;
+            left:0;
+            animation:data-packet 3s ease-in-out infinite;
+            box-shadow:0 0 10px var(--brand-2);
+        }
+        .data-packet.delay-1{
+            animation-delay:1s;
+        }
+        .data-packet.delay-2{
+            animation-delay:2s;
+        }
+        .server-locations{
+            position:absolute;
+            top:0;
+            left:0;
+            right:0;
+            bottom:0;
+        }
+        .location-dot{
+            position:absolute;
+            width:6px;
+            height:6px;
+            background:var(--brand);
+            border-radius:50%;
+            animation:location-pulse 2s ease-in-out infinite;
+            box-shadow:0 0 15px var(--brand);
+        }
+        .connection-line{
+            position:absolute;
+            width:2px;
+            height:30px;
+            background:linear-gradient(180deg, var(--brand), transparent);
+            animation:connection-flow 2s ease-in-out infinite;
+        }
+        @keyframes pulse-ring{
+            0%{
+                transform:scale(0.8);
+                opacity:1;
+            }
+            100%{
+                transform:scale(2);
+                opacity:0;
+            }
+        }
+        @keyframes data-flow{
+            0%,100%{
+                opacity:0.3;
+            }
+            50%{
+                opacity:1;
+            }
+        }
+        @keyframes data-packet{
+            0%{
+                left:0;
+                opacity:0;
+            }
+            50%{
+                opacity:1;
+            }
+            100%{
+                left:100%;
+                opacity:0;
+            }
+        }
+        @keyframes location-pulse{
+            0%,100%{
+                transform:scale(1);
+                opacity:0.7;
+            }
+            50%{
+                transform:scale(1.5);
+                opacity:1;
+            }
+        }
+        @keyframes connection-flow{
+            0%,100%{
+                opacity:0.3;
+                transform:scaleY(0.5);
+            }
+            50%{
+                opacity:1;
+                transform:scaleY(1);
+            }
+        }
+        .trust{
+            display:flex;
+            gap:22px;
+            align-items:center;
+            margin-top:22px;
+            color:var(--muted);
+            opacity:0;
+            transform:translateY(20px);
+            animation:slideInUp 0.8s ease-out 1.3s forwards;
+        }
+        .badge{
+            transition:all .3s ease;
+            cursor:default;
+            display:flex;
+            align-items:center;
+            gap:6px;
+        }
+        .badge:hover{
+            transform:translateY(-2px);
+            color:var(--text);
+        }
+        .badge img{
+            width:12px;
+            height:12px;
+        }
+
+        /* Sections */
+        section{
+            padding:120px 0;
+            position:relative;
+            margin-bottom:40px;
+        }
+        .section-head{
+            text-align:center;
+            margin-bottom:60px;
+        }
+        .section-head h3{
+            font-size:42px;
+            margin:0 0 16px;
+            font-weight:800;
+            letter-spacing:-0.5px;
+            opacity:0;
+            transform:translateY(30px);
+        }
+        .section-head p{
+            margin:0;
+            color:var(--muted);
+            font-size:18px;
+            max-width:600px;
+            margin:0 auto;
+            opacity:0;
+            transform:translateY(20px);
+        }
+        .cards{
+            display:grid;
+            grid-template-columns:repeat(3,1fr);
+            gap:24px;
+            margin-top:40px;
+        }
+        .card{
+            background:var(--panel);
+            border:1px solid rgba(255,255,255,.08);
+            border-radius:20px;
+            padding:32px;
+            box-shadow:var(--shadow);
+            transition:all .4s cubic-bezier(0.4, 0, 0.2, 1);
+            position:relative;
+            overflow:hidden;
+            opacity:0;
+            transform:translateY(40px);
+        }
+        .card::before{
+            content:"";
+            position:absolute;
+            top:0;
+            left:0;
+            right:0;
+            height:3px;
+            background:linear-gradient(90deg, var(--brand), var(--brand-2));
+            transform:scaleX(0);
+            transition:transform .4s ease;
+        }
+        .card:hover::before{
+            transform:scaleX(1);
+        }
+        .card:hover{
+            transform:translateY(-8px);
+            border-color:rgba(124,92,255,.3);
+            box-shadow:0 20px 40px rgba(0,0,0,.3), inset 0 0 0 1px rgba(124,92,255,.1);
+        }
+        .card h4{
+            margin:16px 0 12px;
+            transition:color .3s ease;
+            font-size:20px;
+            font-weight:700;
+        }
+        .card:hover h4{
+            color:var(--brand);
+        }
+        .card p{
+            margin:0;
+            color:var(--muted);
+            line-height:1.6;
+            font-size:15px;
+        }
+        .card .icon{
+            width:48px;
+            height:48px;
+            border-radius:14px;
+            display:grid;
+            place-items:center;
+            background:linear-gradient(135deg, rgba(124,92,255,.25), rgba(92,225,230,.25));
+            border:1px solid rgba(255,255,255,.12);
+            transition:all .4s ease;
+            overflow:hidden;
+        }
+        .card .icon svg{
+            width:24px;
+            height:24px;
+            stroke:var(--brand);
+            transition:all .4s ease;
+        }
+        .card:hover .icon{
+            transform:scale(1.15) rotate(5deg);
+            background:linear-gradient(135deg, rgba(124,92,255,.4), rgba(92,225,230,.4));
+        }
+        .card:hover .icon svg{
+            transform:scale(1.1);
+            stroke:var(--text);
+        }
+
+        /* How it works */
+        .steps{
+            display:grid;
+            grid-template-columns:repeat(3,1fr);
+            gap:32px;
+            margin-top:40px;
+        }
+        .step{
+            background:var(--panel-2);
+            border:1px solid rgba(255,255,255,.08);
+            border-radius:20px;
+            padding:32px;
+            box-shadow:var(--shadow);
+            transition:all .4s cubic-bezier(0.4, 0, 0.2, 1);
+            position:relative;
+            overflow:hidden;
+            opacity:0;
+            transform:translateY(40px);
+        }
+        .step::after{
+            content:"";
+            position:absolute;
+            top:50%;
+            right:-16px;
+            width:32px;
+            height:3px;
+            background:linear-gradient(90deg, var(--brand), var(--brand-2));
+            transform:translateY(-50%);
+            opacity:0;
+            transition:opacity .4s ease;
+            border-radius:2px;
+        }
+        .step:hover::after{
+            opacity:1;
+        }
+        .step:hover{
+            transform:translateY(-8px);
+            border-color:rgba(92,225,230,.3);
+            box-shadow:0 20px 40px rgba(0,0,0,.3);
+        }
+        .step h4{
+            margin:16px 0 12px;
+            font-size:20px;
+            font-weight:700;
+            transition:color .3s ease;
+        }
+        .step:hover h4{
+            color:var(--brand-2);
+        }
+        .step p{
+            margin:0;
+            color:var(--muted);
+            line-height:1.6;
+            font-size:15px;
+        }
+        .badge{
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            padding:8px 14px;
+            border:2px dashed rgba(255,255,255,.2);
+            border-radius:999px;
+            color:var(--muted);
+            transition:all .4s ease;
+            font-weight:700;
+            font-size:14px;
+        }
+        .step:hover .badge{
+            border-color:var(--brand-2);
+            color:var(--brand-2);
+            background:rgba(92,225,230,.1);
+        }
+
+        /* Accordion */
+        .faq{
+            max-width:1000px;
+            margin:0 auto;
+            margin-top:40px;
+        }
+        .faq-item{
+            background:var(--panel);
+            border:1px solid rgba(255,255,255,.08);
+            border-radius:20px;
+            padding:0 24px;
+            box-shadow:var(--shadow);
+            transition:all .4s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-bottom:16px;
+            overflow:hidden;
+            opacity:0;
+            transform:translateY(30px);
+        }
+        .faq-item:hover{
+            border-color:rgba(124,92,255,.3);
+            box-shadow:0 15px 35px rgba(0,0,0,.2);
+        }
+        .faq-q{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:16px;
+            padding:24px 0;
+            cursor:pointer;
+            transition:color .3s ease;
+            font-size:18px;
+            font-weight:600;
+        }
+        .faq-q:hover{
+            color:var(--brand);
+        }
+        .faq-q span{
+            transition:transform .4s cubic-bezier(0.4, 0, 0.2, 1);
+            width:24px;
+            height:24px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            border-radius:50%;
+            background:rgba(124,92,255,.1);
+        }
+        .faq-q span svg{
+            width:16px;
+            height:16px;
+            stroke:var(--brand);
+            transition:all .4s ease;
+        }
+        .faq-a{
+            max-height:0;
+            overflow:hidden;
+            transition:max-height .5s cubic-bezier(0.4, 0, 0.2, 1), opacity .3s ease;
+        }
+        .faq-a p{
+            color:var(--muted);
+            margin:0 0 24px;
+            line-height:1.7;
+            font-size:16px;
+            padding-right:40px;
+        }
+
+        /* Footer */
+        footer{
+            padding:40px 0;
+            color:var(--muted);
+            border-top:1px solid rgba(255,255,255,.06);
+        }
+
+        /* Store cards */
+        .store-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+        .store-card .store-card-inner{display:flex;align-items:center;justify-content:space-between;gap:16px}
+        .icon-btn{display:inline-flex;align-items:center;gap:8px}
+        .store-card .btn{padding:12px 18px;border-radius:12px}
+        .store-card .muted{color:var(--muted)}
+        .store-card.disabled{opacity:.6;filter:grayscale(.3)}
+        .store-card.disabled .btn{cursor:not-allowed}
+
+        /* Dev credits */
+        .dev-card .dev-grid{display:grid;grid-template-columns:180px 1fr;gap:20px;align-items:center}
+        .dev-photo{width:180px;height:180px;border-radius:16px;background:url('aiks.jpg') center/cover no-repeat;box-shadow:0 15px 35px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12)}
+        .dev-details h4{margin:0 0 8px}
+        .dev-details .muted{margin:0 0 12px;color:var(--muted)}
+        .pill{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);margin-right:8px;margin-bottom:8px;color:#cfd6ff;font-weight:600;font-size:12px}
+
+
+        /* Animations */
+        @keyframes slideInUp{
+            to{
+                opacity:1;
+                transform:translateY(0);
+            }
+        }
+        @keyframes slideInRight{
+            to{
+                opacity:1;
+                transform:translateX(0);
+            }
+        }
+        @keyframes pulse{
+            0%,100%{opacity:1;transform:scale(1)}
+            50%{opacity:.7;transform:scale(1.2)}
+        }
+
+        /* Additional Visual Effects */
+        .section-head h3{
+            position:relative;
+            overflow:hidden;
+        }
+        .section-head h3::after{
+            content:"";
+            position:absolute;
+            bottom:0;
+            left:50%;
+            width:60px;
+            height:3px;
+            background:linear-gradient(90deg, var(--brand), var(--brand-2));
+            transform:translateX(-50%);
+            border-radius:2px;
+            animation:underline-grow 1s ease-out 0.5s forwards;
+            opacity:0;
+        }
+        @keyframes underline-grow{
+            0%{width:0;opacity:0}
+            100%{width:60px;opacity:1}
+        }
+        
+        /* Floating Elements */
+        .floating-element{
+            position:absolute;
+            pointer-events:none;
+            opacity:0.6;
+        }
+        .floating-element-1{
+            top:20%;
+            left:10%;
+            animation:float-slow 8s ease-in-out infinite;
+        }
+        .floating-element-2{
+            top:60%;
+            right:15%;
+            animation:float-slow 10s ease-in-out infinite reverse;
+        }
+        .floating-element-3{
+            bottom:30%;
+            left:20%;
+            animation:float-slow 12s ease-in-out infinite;
+        }
+        @keyframes float-slow{
+            0%,100%{transform:translateY(0px) rotate(0deg)}
+            50%{transform:translateY(-20px) rotate(5deg)}
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px){
+            .container{padding:0 20px}
+            .hero-grid{gap:32px}
+            .cards, .steps{gap:20px}
+        }
+        
+        @media (max-width: 1024px){
+            .hero-grid{grid-template-columns:1fr;text-align:center}
+            .cards{grid-template-columns:repeat(2,1fr)}
+            .steps{grid-template-columns:repeat(2,1fr)}
+            .hero h2{font-size:48px}
+            .section-head h3{font-size:36px}
+            .nav-links{gap:16px}
+            .nav-links a{font-size:14px}
+            .store-grid{grid-template-columns:1fr}
+            .dev-card .dev-grid{grid-template-columns:140px 1fr}
+        }
+        
+        @media (max-width: 768px){
+            .hero{padding:100px 0 60px}
+            .hero h2{font-size:40px;line-height:1.1}
+            .hero p{font-size:16px}
+            .cards{grid-template-columns:1fr;gap:16px}
+            .steps{grid-template-columns:1fr;gap:16px}
+            .section-head h3{font-size:32px}
+            .section-head p{font-size:16px}
+            .card{padding:24px}
+            .step{padding:24px}
+            .hero-actions{flex-direction:column;align-items:center}
+            .btn{width:100%;max-width:280px;text-align:center}
+            .trust{flex-direction:column;gap:12px;text-align:center}
+            .nav-links{display:none}
+            .nav-inner{justify-content:center}
+            .dev-card .dev-grid{grid-template-columns:1fr;justify-items:center;text-align:center}
+            .dev-photo{width:140px;height:140px}
+            /* Stack Ready CTA (override inline grid) */
+            .download-panel{grid-template-columns:1fr !important;gap:18px}
+            .download-panel .hero-visual{order:-1}
+            .hero-device{max-width:520px;margin:0 auto}
+            .device-screen{min-height:220px}
+        }
+        
+        @media (max-width: 640px){
+            .container{padding:0 16px}
+            .hero{padding:80px 0 40px}
+            .hero h2{font-size:32px}
+            .hero p{font-size:15px}
+            .section-head h3{font-size:28px}
+            .section-head p{font-size:15px}
+            .card{padding:20px}
+            .step{padding:20px}
+            .faq-item{padding:0 16px}
+            .faq-q{padding:20px 0;font-size:16px}
+            .faq-a p{font-size:15px;padding-right:20px}
+            .splash-logo{width:80px;height:80px}
+            .splash-text{font-size:24px}
+            .splash-subtitle{font-size:14px}
+            .store-grid{grid-template-columns:1fr}
+            .download-panel{grid-template-columns:1fr !important}
+            .hero-device{max-width:440px;margin:0 auto}
+            .device-screen{min-height:200px}
+            /* Lift back to top button higher on mobile */
+            #backToTop{bottom:80px}
+        }
+        
+        @media (max-width: 480px){
+            .hero h2{font-size:28px}
+            .section-head h3{font-size:24px}
+            .card{padding:16px}
+            .step{padding:16px}
+            .btn{padding:12px 16px;font-size:14px}
+            .brand h1{font-size:16px}
+            .brand-mark{width:32px;height:32px}
+        }
+    </style>
+</head>
+<body>
+    <!-- Splash Screen -->
+    <div class="splash-screen" id="splash-screen">
+        <div class="splash-logo"></div>
+        <div class="splash-text">Vyntra</div>
+        <div class="splash-subtitle">Private. Fast. Free.</div>
+        <div class="splash-loader"></div>
+    </div>
+
+    <!-- Parallax Background Blobs -->
+    <div class="parallax-bg">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+        <div class="blob blob-4"></div>
+    </div>
+
+    <!-- Floating Elements -->
+    <div class="floating-element floating-element-1">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--brand)">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M8 12h8"/>
+            <path d="M12 8v8"/>
+        </svg>
+    </div>
+    <div class="floating-element floating-element-2">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--brand-2)">
+            <polygon points="13,2 3,14 12,14 11,22 21,10 12,10 13,2"/>
+        </svg>
+    </div>
+    <div class="floating-element floating-element-3">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent)">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+    </div>
+
+
+    <header class="nav glass-nav">
+        <div class="container nav-inner">
+            <a class="brand" href="#home">
+                <div class="brand-mark" aria-hidden="true"></div>
+                <h1>Vyntra</h1>
+            </a>
+            <nav class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#how">How it works</a>
+                <a href="#privacy">Privacy</a>
+                <a href="#faq">FAQ</a>
+                <a class="cta glass-button" href="#download">Get the App</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <!-- Hero -->
+        <section id="home" class="hero">
+            <div class="container">
+                <div class="hero-grid">
+                    <div>
+                        <span class="tag">Private. Fast. Free.</span>
+                        <h2>Internet privacy, made effortless</h2>
+                        <p>Vyntra gives you a fast, privacy-first connection in a single tap. No sign-up required. Just open the app, connect, and browse with confidence.</p>
+                        <div class="hero-actions">
+                            <a href="#download" class="btn primary">Download Vyntra</a>
+                            <a href="#features" class="btn">Explore features</a>
+                        </div>
+                        <div class="trust">
+                            <span class="badge">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                    <path d="M9 12l2 2 4-4"/>
+                                </svg>
+                                Always-on encryption
+                            </span>
+                            <span class="badge">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="12" cy="7" r="4"/>
+                                </svg>
+                                No account needed
+                            </span>
+                            <span class="badge">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                                    <line x1="8" y1="21" x2="16" y2="21"/>
+                                    <line x1="12" y1="17" x2="12" y2="21"/>
+                                </svg>
+                                One-tap connect
+                            </span>
+                        </div>
+                    </div>
+                    <div class="hero-visual">
+                        <div class="glass hero-device">
+                            <div class="device-screen">
+                                <div class="connection-status">
+                                    <div class="status-indicator">
+                                        <div class="pulse-ring"></div>
+                                        <div class="pulse-ring delay-1"></div>
+                                        <div class="pulse-ring delay-2"></div>
+                                        <div class="led" aria-hidden="true"></div>
+                                    </div>
+                                    <div class="status-text">Connected</div>
+                                </div>
+                                <div class="data-flow">
+                                    <div class="data-packet"></div>
+                                    <div class="data-packet delay-1"></div>
+                                    <div class="data-packet delay-2"></div>
+                                </div>
+                                <div class="server-locations">
+                                    <div class="location-dot" style="top:20%;left:30%;"></div>
+                                    <div class="location-dot" style="top:40%;right:25%;"></div>
+                                    <div class="location-dot" style="bottom:30%;left:40%;"></div>
+                                    <div class="connection-line" style="top:20%;left:30%;"></div>
+                                    <div class="connection-line" style="top:40%;right:25%;"></div>
+                                    <div class="connection-line" style="bottom:30%;left:40%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section id="features">
+            <div class="container">
+                <div class="section-head">
+                    <h3>Why Vyntra?</h3>
+                    <p>Designed for real life: quick, private, and beautifully simple.</p>
+                </div>
+                <div class="cards">
+                    <article class="card">
+                        <div class="icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                <path d="M9 12l2 2 4-4"/>
+                            </svg>
+                        </div>
+                        <h4>Privacy-first</h4>
+                        <p>We don't ask for accounts or sensitive details. Tap to connect and keep your activity private.</p>
+                    </article>
+                    <article class="card">
+                        <div class="icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="13,2 3,14 12,14 11,22 21,10 12,10 13,2"/>
+                            </svg>
+                        </div>
+                        <h4>Fast by default</h4>
+                        <p>Smart routing picks a nearby, healthy server so you get smooth browsing and streaming.</p>
+                    </article>
+                    <article class="card">
+                        <div class="icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <circle cx="12" cy="16" r="1"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                        </div>
+                        <h4>Secure connection</h4>
+                        <p>Your traffic is encrypted end‑to‑end to help protect you on public Wi‑Fi and beyond.</p>
+                    </article>
+                    <article class="card">
+                        <div class="icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M2 12h20"/>
+                                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                            </svg>
+                        </div>
+                        <h4>Global access</h4>
+                        <p>Choose from multiple regions to find the best experience for you.</p>
+                    </article>
+                    <article class="card">
+                        <div class="icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                                <line x1="8" y1="21" x2="16" y2="21"/>
+                                <line x1="12" y1="17" x2="12" y2="21"/>
+                            </svg>
+                        </div>
+                        <h4>One‑tap simplicity</h4>
+                        <p>A beautifully minimal interface. No clutter, no confusion—just connect.</p>
+                    </article>
+                    <article class="card">
+                        <div class="icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                        </div>
+                        <h4>Free forever</h4>
+                        <p>Core protection and connectivity at no cost. Optional extras arrive later.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- How it works -->
+        <section id="how">
+            <div class="container">
+                <div class="section-head">
+                    <h3>How it works</h3>
+                    <p>Three simple steps to private browsing.</p>
+                </div>
+                <div class="steps">
+                    <div class="step">
+                        <span class="badge">1</span>
+                        <h4>Install the app</h4>
+                        <p>Download Vyntra on your device. No sign‑up or personal details required.</p>
+                    </div>
+                    <div class="step">
+                        <span class="badge">2</span>
+                        <h4>Tap connect</h4>
+                        <p>Open the app and tap the connect button. Vyntra finds a reliable route for you.</p>
+                    </div>
+                    <div class="step">
+                        <span class="badge">3</span>
+                        <h4>Browse privately</h4>
+                        <p>Stay protected on public Wi‑Fi, block snooping, and keep your connection stable.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Privacy -->
+        <section id="privacy">
+            <div class="container">
+                <div class="section-head">
+                    <h3>Privacy & Trust</h3>
+                    <p>Our approach to safeguarding your connection.</p>
+                </div>
+                <div class="cards">
+                    <article class="card">
+                        <div class="icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                                <line x1="1" y1="1" x2="23" y2="23"/>
+                            </svg>
+                        </div>
+                        <h4>No account required</h4>
+                        <p>Use Vyntra immediately—no email, no phone number, no profile to set up.</p>
+                    </article>
+                    <article class="card">
+                        <div class="icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14,2 14,8 20,8"/>
+                                <line x1="16" y1="13" x2="8" y2="13"/>
+                                <line x1="16" y1="17" x2="8" y2="17"/>
+                                <polyline points="10,9 9,9 8,9"/>
+                            </svg>
+                        </div>
+                        <h4>Minimal, transparent data</h4>
+                        <p>We only process what's necessary to run the service. No activity monitoring.</p>
+                    </article>
+                    <article class="card">
+                        <div class="icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+                            </svg>
+                        </div>
+                        <h4>Encryption by default</h4>
+                        <p>Your connection is protected by modern encryption from the moment you connect.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- Download CTA -->
+        <section id="download">
+            <div class="container">
+                <div class="glass glass-card download-panel" style="padding:32px;display:grid;grid-template-columns:1.1fr .9fr;gap:24px;align-items:center;position:relative">
+                    <div class="cta-anim">
+                        <span class="shine"></span>
+                        <span class="orb o1"></span>
+                        <span class="orb o2"></span>
+                        <span class="line l1"></span>
+                        <span class="line l2"></span>
+                        <span class="line l3"></span>
+                    </div>
+                    <div>
+                        <h3 style="margin:0 0 12px;font-size:28px">Ready when you are</h3>
+                        <p style="margin:0;color:var(--muted);font-size:16px">Get the free Vyntra app and connect in seconds. Private. Fast. Effortless.</p>
+                        <div class="hero-actions" style="margin-top:24px">
+                            <a class="btn primary glass-button" href="#">Download for Android</a>
+                            <a class="btn glass-button" href="#">Other platforms</a>
+                        </div>
+                    </div>
+                    <div class="hero-visual">
+                        <div class="glass hero-device">
+                            <div class="device-screen">
+                                <div class="connection-status">
+                                    <div class="status-indicator">
+                                        <div class="pulse-ring"></div>
+                                        <div class="pulse-ring delay-1"></div>
+                                        <div class="pulse-ring delay-2"></div>
+                                        <div class="led" aria-hidden="true"></div>
+                                    </div>
+                                    <div class="status-text">Optimized route found</div>
+                                </div>
+                                <div class="data-flow">
+                                    <div class="data-packet"></div>
+                                    <div class="data-packet delay-1"></div>
+                                    <div class="data-packet delay-2"></div>
+                                </div>
+                                <div class="server-locations">
+                                    <div class="location-dot" style="top:22%;left:26%;"></div>
+                                    <div class="location-dot" style="top:38%;right:22%;"></div>
+                                    <div class="location-dot" style="bottom:28%;left:42%;"></div>
+                                    <div class="connection-line" style="top:22%;left:26%;height:36px"></div>
+                                    <div class="connection-line" style="top:38%;right:22%;height:28px"></div>
+                                    <div class="connection-line" style="bottom:28%;left:42%;height:30px"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Extra Downloads Section -->
+        <section id="downloads">
+            <div class="container">
+                <div class="section-head">
+                    <h3>Get Vyntra</h3>
+                    <p>Choose your platform. Links will be updated as they go live.</p>
+                </div>
+                <div class="store-grid">
+                    <article class="glass glass-card store-card">
+                        <div class="store-card-inner">
+                            <div class="store-left">
+                                <h4 style="display:flex;align-items:center;gap:10px">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="color:#cfd6ff">
+                                        <path d="M12 .5a12 12 0 0 0-3.79 23.4c.6.11.82-.26.82-.58 0-.29-.01-1.05-.02-2.06-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.74.08-.74 1.2.09 1.83 1.23 1.83 1.23 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.66-.3-5.46-1.33-5.46-5.93 0-1.31.47-2.38 1.24-3.22-.13-.31-.54-1.56.12-3.25 0 0 1.02-.33 3.35 1.23a11.6 11.6 0 0 1 6.1 0c2.33-1.56 3.35-1.23 3.35-1.23.66 1.69.25 2.94.12 3.25.77.84 1.24 1.91 1.24 3.22 0 4.61-2.8 5.63-5.47 5.93.43.37.81 1.1.81 2.22 0 1.6-.01 2.88-.01 3.27 0 .32.22.69.83.57A12 12 0 0 0 12 .5z"/>
+                                    </svg>
+                                    Download from GitHub
+                                </h4>
+                                <p class="muted">Grab the latest release directly. Verified builds and changelogs.</p>
+                            </div>
+                            <div class="store-right">
+                                <a class="btn primary glass-button icon-btn" href="#" aria-label="Download from GitHub">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="margin-right:8px"><path d="M12 .5a12 12 0 0 0-3.79 23.4c.6.11.82-.26.82-.58 0-.29-.01-1.05-.02-2.06-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.74.08-.74 1.2.09 1.83 1.23 1.83 1.23 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.66-.3-5.46-1.33-5.46-5.93 0-1.31.47-2.38 1.24-3.22-.13-.31-.54-1.56.12-3.25 0 0 1.02-.33 3.35 1.23a11.6 11.6 0 0 1 6.1 0c2.33-1.56 3.35-1.23 3.35-1.23.66 1.69.25 2.94.12 3.25.77.84 1.24 1.91 1.24 3.22 0 4.61-2.8 5.63-5.47 5.93.43.37.81 1.1.81 2.22 0 1.6-.01 2.88-.01 3.27 0 .32.22.69.83.57A12 12 0 0 0 12 .5z"/></svg>
+                                    Download
+                                </a>
+                            </div>
+                        </div>
+                    </article>
+                    <article class="glass glass-card store-card disabled" aria-disabled="true">
+                        <div class="store-card-inner">
+                            <div class="store-left">
+                                <h4 style="display:flex;align-items:center;gap:10px">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="color:#ffffff">
+                                        <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
+                                    </svg>
+                                    Download from Play Store
+                                </h4>
+                                <p class="muted">Currently in review — Q1. We’ll update this as soon as it’s live.</p>
+                            </div>
+                            <div class="store-right">
+                                <button class="btn glass-button icon-btn" disabled>
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="margin-right:8px;color:#ffffff">
+                                        <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
+                                    </svg>
+                                    In review — Q1
+                                </button>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- Developer Credit -->
+        <section id="credits">
+            <div class="container">
+                <div class="section-head">
+                    <h3>Built by Aiks</h3>
+                    <p>The mind behind Vyntra’s experience and polish.</p>
+                </div>
+                <article class="glass glass-card dev-card">
+                    <div class="dev-grid">
+                        <div class="dev-photo" aria-hidden="true"></div>
+                        <div class="dev-details">
+                            <h4>Aiks — Aikya Naskar</h4>
+                            <p class="muted">Designer • Developer • Performance enthusiast. Focused on privacy-first products with delightful UX. Passionate about motion design, glassmorphism, and crafting fast, dependable apps.</p>
+                            <div class="dev-meta">
+                                <span class="pill">UI/UX</span>
+                                <span class="pill">Flutter</span>
+                                <span class="pill">Web</span>
+                                <span class="pill">Animations</span>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <!-- FAQ -->
+        <section id="faq">
+            <div class="container">
+                <div class="section-head">
+                    <h3>Frequently asked questions</h3>
+                    <p>Quick answers to common questions.</p>
+                </div>
+                <div class="faq">
+                    <div class="faq-item">
+                        <div class="faq-q"><strong>Is Vyntra really free?</strong><span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span></div>
+                        <div class="faq-a"><p>Absolutely! Vyntra's core protection and connectivity features are completely free forever. We believe privacy should be accessible to everyone. While we may introduce optional premium features in the future, the essential VPN functionality will always remain free.</p></div>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-q"><strong>Do I need an account?</strong><span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span></div>
+                        <div class="faq-a"><p>No account required! Simply download the app, open it, and tap connect. We've designed Vyntra to work instantly without any sign-up process, email verification, or personal information collection.</p></div>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-q"><strong>What devices are supported?</strong><span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span></div>
+                        <div class="faq-a"><p>Currently, Vyntra is available for Android devices. We're actively working on expanding to iOS, Windows, macOS, and Linux. Follow our updates to be notified when your preferred platform becomes available.</p></div>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-q"><strong>What data do you store?</strong><span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span></div>
+                        <div class="faq-a"><p>We store only the minimum data necessary to provide reliable service, such as basic connection logs for troubleshooting. We do not monitor, log, or store your browsing activity, personal data, or online behavior. Your privacy is our priority.</p></div>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-q"><strong>How fast is Vyntra?</strong><span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span></div>
+                        <div class="faq-a"><p>Vyntra uses smart routing to automatically select the fastest available server near your location. While VPN speeds depend on various factors, we optimize our infrastructure to minimize speed impact and provide the best possible performance.</p></div>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-q"><strong>Is Vyntra safe to use?</strong><span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span></div>
+                        <div class="faq-a"><p>Yes, Vyntra uses industry-standard encryption to protect your connection. We implement modern security protocols and regularly update our systems to ensure your data remains secure and private while browsing.</p></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container" style="display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap">
+            <small>© <span id="year"></span> Vyntra. All rights reserved.</small>
+            <div style="display:flex;gap:14px;align-items:center">
+                <a href="#privacy">Privacy</a>
+                <a href="#faq">FAQ</a>
+                <a href="#download" class="cta">Get the App</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Back to Top Button -->
+    <button id="backToTop" aria-label="Back to top" style="position:fixed;right:20px;bottom:20px;z-index:60;border:none;background:linear-gradient(135deg, var(--brand), var(--brand-2));color:#0b0f1f;width:44px;height:44px;border-radius:50%;box-shadow:0 12px 30px rgba(124,92,255,.35);cursor:pointer;display:none;align-items:center;justify-content:center">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0b0f1f" stroke-width="3"><path d="M18 15l-6-6-6 6"/></svg>
+    </button>
+
+    <script>
+        // Splash Screen
+        function hideSplashScreen() {
+            const splashScreen = document.getElementById('splash-screen');
+            splashScreen.classList.add('fade-out');
+            setTimeout(() => {
+                splashScreen.style.display = 'none';
+            }, 800);
+        }
+
+        // Show splash screen for 3 seconds
+        window.addEventListener('load', function() {
+            setTimeout(hideSplashScreen, 3000);
+        });
+
+        // Current year
+        document.getElementById('year').textContent = new Date().getFullYear();
+
+        // Simple scroll animations without external libraries
+        function animateOnScroll() {
+            const elements = document.querySelectorAll('.section-head h3, .section-head p, .card, .step, .faq-item');
+            
+            elements.forEach(element => {
+                const elementTop = element.getBoundingClientRect().top;
+                const elementVisible = 150;
+                
+                if (elementTop < window.innerHeight - elementVisible) {
+                    element.style.opacity = '1';
+                    element.style.transform = 'translateY(0)';
+                }
+            });
+        }
+
+        // FAQ Accordion
+        function initFAQ() {
+            const faqItems = document.querySelectorAll('.faq-item');
+            
+            faqItems.forEach(item => {
+                const question = item.querySelector('.faq-q');
+                const answer = item.querySelector('.faq-a');
+                const icon = question.querySelector('span svg');
+                
+                question.addEventListener('click', () => {
+                    const isOpen = answer.style.maxHeight && answer.style.maxHeight !== '0px';
+                    
+                    // Close all other FAQs
+                    document.querySelectorAll('.faq-a').forEach(a => {
+                        if (a !== answer) {
+                            a.style.maxHeight = '0px';
+                            a.style.opacity = '0';
+                        }
+                    });
+                    document.querySelectorAll('.faq-q span svg').forEach(svg => {
+                        if (svg !== icon) {
+                            svg.innerHTML = '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>';
+                            svg.parentElement.style.transform = 'rotate(0deg)';
+                        }
+                    });
+                    
+                    if (!isOpen) {
+                        answer.style.maxHeight = answer.scrollHeight + 'px';
+                        icon.innerHTML = '<line x1="5" y1="12" x2="19" y2="12"/>';
+                        answer.style.opacity = '1';
+                        icon.parentElement.style.transform = 'rotate(180deg)';
+                    } else {
+                        answer.style.maxHeight = '0px';
+                        icon.innerHTML = '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>';
+                        answer.style.opacity = '0';
+                        icon.parentElement.style.transform = 'rotate(0deg)';
+                    }
+                });
+            });
+        }
+
+        // Smooth scroll for anchor links using Lenis (desktop)
+        function initSmoothScroll() {
+            if (window.innerWidth >= 1024) {
+                // Disable browser scrollbar on desktop
+                document.body.style.overflow = 'hidden';
+                
+                const lenisScript = document.createElement('script');
+                lenisScript.src = 'https://unpkg.com/@studio-freight/lenis@1.0.45/bundled/lenis.min.js';
+                lenisScript.onload = () => {
+                    const lenis = new Lenis({
+                        duration: 1.8,
+                        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+                        smooth: true,
+                        smoothTouch: false,
+                        touchMultiplier: 2,
+                        infinite: false,
+                        orientation: 'vertical',
+                        gestureOrientation: 'vertical',
+                        normalizeWheel: true,
+                        wheelMultiplier: 1,
+                        touchInertiaMultiplier: 35,
+                        lerp: 0.1
+                    });
+                    function raf(time){ lenis.raf(time); requestAnimationFrame(raf); }
+                    requestAnimationFrame(raf);
+
+                    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                        anchor.addEventListener('click', function(e) {
+                            const href = this.getAttribute('href');
+                            if (href && href.startsWith('#')) {
+                                e.preventDefault();
+                                const target = document.querySelector(href);
+                                if (target) lenis.scrollTo(target, { offset: -80, duration: 2.5 });
+                            }
+                        });
+                    });
+                };
+                document.head.appendChild(lenisScript);
+            } else {
+                // Native smooth for mobile
+                document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                    anchor.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const target = document.querySelector(this.getAttribute('href'));
+                        if (target) target.scrollIntoView({ behavior:'smooth', block:'start' });
+                    });
+                });
+            }
+        }
+
+        // Nav scroll effect
+        function initNavScroll() {
+            const nav = document.querySelector('.nav');
+            
+            window.addEventListener('scroll', () => {
+                if (window.scrollY > 50) {
+                    nav.style.boxShadow = '0 8px 32px rgba(0,0,0,.3)';
+                    nav.style.backdropFilter = 'saturate(180%) blur(20px)';
+                } else {
+                    nav.style.boxShadow = 'none';
+                    nav.style.backdropFilter = 'saturate(160%) blur(10px)';
+                }
+            });
+        }
+
+        // Initialize everything when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize all functions
+            animateOnScroll();
+            initFAQ();
+            initSmoothScroll();
+            initNavScroll();
+            // Back to Top
+            const toTop = document.getElementById('backToTop');
+            window.addEventListener('scroll', ()=>{
+                toTop.style.display = window.scrollY > 400 ? 'flex' : 'none';
+            }, {passive:true});
+            toTop.addEventListener('click', ()=>{
+                window.scrollTo({top:0, behavior:'smooth'});
+            });
+            
+            // Add scroll listener for animations
+            window.addEventListener('scroll', animateOnScroll);
+            
+            console.log('Vyntra website initialized successfully!');
+        });
+
+        // Fallback for any missing functionality
+        window.addEventListener('load', function() {
+            // Ensure all elements are visible if animations fail
+            setTimeout(() => {
+                const hiddenElements = document.querySelectorAll('[style*="opacity: 0"]');
+                hiddenElements.forEach(el => {
+                    if (el.getBoundingClientRect().top < window.innerHeight) {
+                        el.style.opacity = '1';
+                        el.style.transform = 'translateY(0)';
+                    }
+                });
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
