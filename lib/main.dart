@@ -65,11 +65,7 @@ class _VyntraAppState extends State<VyntraApp> {
       ),
       themeMode: _mode,
       home: SplashScreen(
-        onReady: () => Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => HomeScreen(onThemeChange: _setMode, currentMode: _mode),
-          ),
-        ),
+        next: HomeScreen(onThemeChange: _setMode, currentMode: _mode),
       ),
       debugShowCheckedModeBanner: false,
     );

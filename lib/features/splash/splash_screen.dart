@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 class SplashScreen extends StatefulWidget {
-  final VoidCallback onReady;
-  const SplashScreen({super.key, required this.onReady});
+  final Widget next;
+  const SplashScreen({super.key, required this.next});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -38,18 +38,29 @@ class _SplashScreenState extends State<SplashScreen>
       CurvedAnimation(parent: _controller, curve: const Interval(0.7, 1.0, curve: Curves.easeOut)),
     );
 
+    bool navigated = false;
+
+    // Navigate to next when animation completes
+    _controller.addStatusListener((status) async {
+      if (status == AnimationStatus.completed && !navigated && mounted) {
+        navigated = true;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        if (!mounted) return;
+        // Smooth fade route
+        // ignore: use_build_context_synchronously
+        Navigator.of(context).pushReplacement(PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 300),
+          pageBuilder: (_, __, ___) => widget.next,
+          transitionsBuilder: (_, animation, __, child) => FadeTransition(
+            opacity: animation,
+            child: child,
+          ),
+        ));
+      }
+    });
+
     // Start animation sequence
     _controller.forward();
-
-    // Preload any required lightweight data here if needed
-    _preload();
-  }
-
-  Future<void> _preload() async {
-    // Simulate brief load while animation runs
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-    widget.onReady();
   }
 
   @override
